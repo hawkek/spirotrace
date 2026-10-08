@@ -4,7 +4,7 @@ title: "spirotrace: traceable extraction of lung function data from printed and 
 type: software
 # TODO: fill in your details; add co-authors as they contribute
 authors:
-  - family-names: "SURNAME"
+  - family-names: "Hawke"
     given-names: "Kirsty"
     affiliation: "University of Canterbury"
     # orcid: "https://orcid.org/0000-0000-0000-0000"
