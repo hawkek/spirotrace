@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use spirotrace, please cite it as below."
+title: "spirotrace: traceable extraction of lung function data from printed and scanned reports"
+type: software
+# TODO: fill in your details; add co-authors as they contribute
+authors:
+  - family-names: "SURNAME"
+    given-names: "Kirsty"
+    affiliation: "University of Canterbury"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"
+repository-code: "https://github.com/hawkek/spirotrace"
+version: 0.0.1
+date-released: 2026-10-08
+keywords:
+  - spirometry
+  - lung function
+  - data extraction
+  - data quality
+# license: to be confirmed

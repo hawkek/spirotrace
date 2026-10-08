@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spirotrace"
+version = "0.0.1"
+description = "Traceable extraction of lung function data from printed and scanned reports"
+readme = "README.md"
+requires-python = ">=3.10"
+# TODO: replace with your full name and the email you want public on PyPI
+authors = [{ name = "Kirsty SURNAME" }]
+keywords = ["spirometry", "lung function", "PDF extraction", "OCR", "data quality", "GLI"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Programming Language :: Python :: 3",
+]
+# Dependencies are added as modules are ported (planned: pdfplumber, pypdfium2, Pillow, numpy, openpyxl, PyYAML).
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.urls]
+Homepage = "https://github.com/hawkek/spirotrace"
+Issues = "https://github.com/hawkek/spirotrace/issues"
+
+[project.scripts]
+spirotrace = "spirotrace.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"spirotrace.layouts" = ["templates/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
