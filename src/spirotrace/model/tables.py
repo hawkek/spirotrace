@@ -41,8 +41,16 @@ from .vocab import (
 FILE_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 """SHA-256 of the PDF bytes, lowercase hex."""
 
-RECORD_ID_RE = re.compile(r"^[0-9]+[AB]?$")
-"""v0.3.16 form: ``11`` for one layout in a file, ``11A`` and ``11B`` for two."""
+RECORD_ID_RE = re.compile(r"^([0-9]+|f[0-9a-f]{8})[AB]?(-([2-9]|[1-9][0-9]+))?$")
+"""Record id forms.
+
+- ``11``: the subject id from the file name; ``11A`` and ``11B`` when one file
+  holds both layouts (the v0.3.16 form).
+- ``f`` plus the first eight hex characters of the file hash when the file
+  name gives no subject id.
+- ``-2``, ``-3``, ... after either form for the second, third ... file with the
+  same subject id (an input-layer error is raised alongside).
+"""
 
 TEMPLATE_ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -93,6 +101,14 @@ def _check_hash(file_hash: str) -> None:
         raise ModelError("file_hash must be 64 lowercase hex characters (SHA-256)")
 
 
+def _check_record_id(record_id: str) -> None:
+    if not RECORD_ID_RE.match(record_id):
+        raise ModelError(
+            "record_id must be digits or f+8 hex, an optional A or B and an "
+            f"optional -n (n >= 2), got {record_id!r}"
+        )
+
+
 def _check_finite(name: str, value: float | None) -> None:
     if value is not None and not math.isfinite(value):
         raise ModelError(f"{name} must be finite, got {value!r}")
@@ -115,8 +131,9 @@ class Record:
     Parameters
     ----------
     record_id
-        ``11``, or ``11A`` / ``11B`` when one file holds both layouts. Not part
-        of the observation key.
+        ``11``, or ``11A`` / ``11B`` when one file holds both layouts; see
+        :data:`RECORD_ID_RE` for the no-subject-id and duplicate-subject forms.
+        Not part of the observation key.
     file_hash
         SHA-256 of the PDF bytes, lowercase hex.
     layout
@@ -143,10 +160,7 @@ class Record:
     )
 
     def __post_init__(self) -> None:
-        if not RECORD_ID_RE.match(self.record_id):
-            raise ModelError(
-                f"record_id must be digits with an optional A or B, got {self.record_id!r}"
-            )
+        _check_record_id(self.record_id)
         _check_hash(self.file_hash)
         if not TEMPLATE_ID_RE.match(self.layout):
             raise ModelError(f"layout must be a template id, got {self.layout!r}")
@@ -461,10 +475,7 @@ class Observation:
     def __post_init__(self) -> None:
         if not isinstance(self.key, ObservationKey):
             raise ModelError("key must be an ObservationKey")
-        if not RECORD_ID_RE.match(self.record_id):
-            raise ModelError(
-                f"record_id must be digits with an optional A or B, got {self.record_id!r}"
-            )
+        _check_record_id(self.record_id)
         if self.template_version < 1:
             raise ModelError("template_version must be 1 or more")
         if not isinstance(self.value_state, ValueState):

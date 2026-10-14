@@ -94,13 +94,59 @@ def record(**overrides: Any) -> Record:
 # --- Record -----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("record_id", ["11", "11A", "11B", "7", "0011", "123456"])
+@pytest.mark.parametrize(
+    "record_id",
+    [
+        # subject id from the file name, one or two layouts
+        "11",
+        "11A",
+        "11B",
+        "7",
+        "0011",
+        "123456",
+        # a second, third ... file for the same subject id
+        "11-2",
+        "11-3",
+        "11A-2",
+        "11B-10",
+        # no subject id in the file name: "f" plus the first 8 hex of the file hash
+        "f" + HASH[:8],
+        "f" + HASH[:8] + "A",
+        "f" + HASH[:8] + "B-2",
+    ],
+)
 def test_record_id_forms_accepted(record_id: str) -> None:
     assert record(record_id=record_id).record_id == record_id
 
 
 @pytest.mark.parametrize(
-    "record_id", ["11C", "11a", "A11", "11 A", "", "11AB", "11-A", "eleven", "11.0"]
+    "record_id",
+    [
+        "11C",
+        "11a",
+        "A11",
+        "11 A",
+        "",
+        "11AB",
+        "11-A",
+        "eleven",
+        "11.0",
+        # duplicate suffix starts at 2 and has no leading zero
+        "11-1",
+        "11-0",
+        "11-02",
+        "11-",
+        "11--2",
+        # the layout letter comes before the duplicate suffix
+        "11-2A",
+        # the hash form is "f" plus exactly 8 lowercase hex characters
+        "f" + HASH[:7],
+        "f" + HASH[:9],
+        "F" + HASH[:8],
+        "f" + HASH[:8].upper(),
+        "g" + HASH[:8],
+        HASH[:8],
+    ],
 )
 def test_record_id_forms_refused(record_id: str) -> None:
     with pytest.raises(ModelError, match="record_id"):
