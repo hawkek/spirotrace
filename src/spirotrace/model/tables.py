@@ -429,6 +429,10 @@ class Observation:
     marked
         True when the report marked the value itself (its asterisk for
         outside the normal range).
+    struck
+        True when the value is printed struck through (a trial the device
+        marked "Not Usable"). The number is readable and kept, so it is
+        allowed only with ``value_state`` ``VALUE``.
     bbox
         ``(x0, y0, x1, y1)`` in page points; None for inferred, manual and
         not-on-page values.
@@ -456,6 +460,7 @@ class Observation:
     unit: str | None
     printed_form: RatioForm | None
     marked: bool
+    struck: bool
     bbox: BBox | None
     read_method: ReadMethod
     ocr_confidence: float | None
@@ -473,6 +478,7 @@ class Observation:
         "unit",
         "printed_form",
         "marked",
+        "struck",
         "bbox_x0",
         "bbox_y0",
         "bbox_x1",
@@ -503,6 +509,8 @@ class Observation:
             raise ModelError("value_state must be a ValueState")
         if not isinstance(self.read_method, ReadMethod):
             raise ModelError("read_method must be a ReadMethod")
+        if self.struck and self.value_state is not ValueState.VALUE:
+            raise ModelError("struck is only allowed with value_state value")
         if self.read_method is ReadMethod.OCR_CELL:
             raise ModelError(
                 "ocr_cell is the second reading's method; it lives in second_reading"
@@ -638,6 +646,7 @@ class Observation:
             "unit": _enc(self.unit),
             "printed_form": _enc(self.printed_form),
             "marked": _enc(self.marked),
+            "struck": _enc(self.struck),
             "bbox_x0": _enc(bbox[0]),
             "bbox_y0": _enc(bbox[1]),
             "bbox_x1": _enc(bbox[2]),
@@ -676,6 +685,7 @@ class Observation:
             unit=_opt_str(r["unit"]),
             printed_form=RatioForm(r["printed_form"]) if r["printed_form"] else None,
             marked=_bool(r["marked"]),
+            struck=_bool(r["struck"]),
             bbox=bbox,
             read_method=ReadMethod(r["read_method"]),
             ocr_confidence=_opt_float(r["ocr_confidence"]),

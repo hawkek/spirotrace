@@ -16,14 +16,17 @@ from enum import StrEnum
 
 
 class ValueState(StrEnum):
-    """What the cell held (seam 2). Only ``VALUE`` carries a parsed value."""
+    """What the cell held (seam 2). Only ``VALUE`` carries a parsed value.
+
+    A struck-through value (a trial marked "Not Usable") is still a readable
+    ``VALUE``; the strikethrough is ``Observation.struck``, not a state.
+    """
 
     VALUE = "value"
     EMPTY = "empty"
     DASH = "dash"
     NOT_ON_PAGE = "not_on_page"
     UNREADABLE = "unreadable"
-    STRUCK = "struck"
 
 
 class ReadMethod(StrEnum):

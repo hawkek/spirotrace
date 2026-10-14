@@ -53,6 +53,7 @@ def obs(**overrides: Any) -> Observation:
         "unit": "L",
         "printed_form": None,
         "marked": False,
+        "struck": False,
         "bbox": (100.0, 200.5, 140.25, 212.0),
         "read_method": ReadMethod.TEXT_LAYER,
         "ocr_confidence": None,
@@ -287,7 +288,6 @@ STATE_PAYLOADS = {
     ValueState.DASH: {"raw_text": "-", "parsed_value": None},
     ValueState.NOT_ON_PAGE: {"raw_text": "", "parsed_value": None, "bbox": None},
     ValueState.UNREADABLE: {"raw_text": "3.S2", "parsed_value": None},
-    ValueState.STRUCK: {"raw_text": "3.52", "parsed_value": None},
 }
 
 
@@ -450,6 +450,22 @@ def test_second_reading_mismatch_refused() -> None:
         obs(second_reading_run=True, second_reading=None)
     with pytest.raises(ModelError, match="second_reading"):
         obs(second_reading_run=False, second_reading="")
+
+
+def test_struck_keeps_the_readable_value() -> None:
+    # a strikethrough on a "Not Usable" trial: the number is still read
+    o = obs(struck=True)
+    assert o.parsed_value == 3.52 and o.value_state is ValueState.VALUE
+    row = o.to_row()
+    assert row["struck"] == "true" and "struck" in Observation.COLUMNS
+    assert Observation.from_row(row) == o
+    assert o != obs(struck=False)
+
+
+@pytest.mark.parametrize("state", [s for s in ValueState if s is not ValueState.VALUE])
+def test_struck_needs_a_value(state: ValueState) -> None:
+    with pytest.raises(ModelError, match="struck"):
+        obs(value_state=state, struck=True, **STATE_PAYLOADS[state])
 
 
 def test_second_reading_needs_a_bbox_on_a_page() -> None:

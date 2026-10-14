@@ -19,14 +19,15 @@ from spirotrace.model import (
 )
 
 
-def test_value_states_are_the_six_of_seam_2() -> None:
+def test_value_states_are_the_five_of_seam_2_as_amended() -> None:
+    # "struck" left the vocabulary on 14 Oct: a struck-through trial is a
+    # readable value with Observation.struck set
     assert [s.value for s in ValueState] == [
         "value",
         "empty",
         "dash",
         "not_on_page",
         "unreadable",
-        "struck",
     ]
 
 
