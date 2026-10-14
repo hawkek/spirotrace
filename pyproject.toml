@@ -7,15 +7,15 @@ name = "spirotrace"
 version = "0.0.1"
 description = "Traceable extraction of lung function data from printed and scanned reports"
 readme = "README.md"
-requires-python = ">=3.10"
-# TODO: replace with your full name and the email you want public on PyPI
-authors = [{ name = "Kirsty SURNAME" }]
+requires-python = ">=3.11"
+authors = [{ name = "Kirsty Hawke" }]
 keywords = ["spirometry", "lung function", "PDF extraction", "OCR", "data quality", "GLI"]
 classifiers = [
     "Development Status :: 1 - Planning",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
 ]
 # Dependencies are added as modules are ported (planned: pdfplumber, pypdfium2, Pillow, numpy, openpyxl, PyYAML).
 dependencies = []
