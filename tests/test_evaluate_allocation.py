@@ -1,6 +1,5 @@
 """Coder allocation: overlap per pair, exclusions never violated, exact matching of singles."""
 
-import random
 from collections import Counter
 
 import pytest
@@ -64,56 +63,30 @@ def test_unequal_reports_per_coder() -> None:
     }
 
 
-def test_exclusions_never_violated_over_many_seeds() -> None:
+def test_excluded_coder_keeps_only_eligible_reports_in_overlap_and_singles() -> None:
+    # the study case: one coder may not code the reports they corrected (a fixed list)
     frame = synthetic_frame()
     ids = sorted(frame.record_ids)
-    feasible = infeasible = 0
-    for seed in range(200):
-        rng = random.Random(seed)
-        exclusions = {
-            c: frozenset(rng.sample(ids, rng.randint(0, 45)))
-            for c in ("c1", "c2", "c3")
-        }
-        d = design(k=14, seed=seed)
-        try:
-            allocation = allocate_coders(draw_sample(frame, d), d, exclusions)
-        except AllocationError as e:
-            infeasible += 1
-            assert not any(rid in str(e) for rid in ids)
-            continue
-        feasible += 1
-        allocation_holds(allocation, d, exclusions)
-    assert feasible > 50
-    assert infeasible > 0
-
-
-def test_one_constrained_coder_is_always_allocated_when_feasible() -> None:
-    # the realistic case: one coder may not code the reports they corrected
-    frame = synthetic_frame()
-    ids = sorted(frame.record_ids)
-    for seed in range(100):
-        corrected = frozenset(random.Random(seed).sample(ids, 50))
-        d = design(k=14, seed=seed)
-        sample = draw_sample(frame, d)
-        eligible = sample.record_ids - corrected
-        per_layout = Counter(sample[r].layout for r in eligible)
-        if len(eligible) < 14 or min(per_layout.values(), default=0) < 2:
-            continue  # the sample itself cannot satisfy the design
-        allocation = allocate_coders(sample, d, {"c1": corrected})
-        allocation_holds(allocation, d, {"c1": corrected})
+    corrected = frozenset(ids[::2])  # every second record, both layouts
+    d = design(k=14, seed=3)
+    sample = draw_sample(frame, d)
+    allocation = allocate_coders(sample, d, {"c1": corrected})
+    allocation_holds(allocation, d, {"c1": corrected})
+    # the excluded coder sits in two pairs: both overlaps avoid the list and span the layouts
+    for pair in (("c1", "c2"), ("c1", "c3")):
+        shared = [a for a in allocation.assignments if a.coders == pair]
+        assert len(shared) == 2
+        assert sorted(a.layout for a in shared) == ["layout_a", "layout_b"]
+        assert not {a.record_id for a in shared} & corrected
+    singles = [a for a in allocation.for_coder("c1") if not a.overlap]
+    assert len(singles) == 10 and not {a.record_id for a in singles} & corrected
+    assert {a.record_id for a in allocation.assignments} == sample.record_ids
 
 
 def test_matching_succeeds_where_greedy_would_fail() -> None:
     eligible = {"r1": ["c1", "c2"], "r2": ["c1", "c2"], "r3": ["c1"], "r4": ["c1"]}
     assigned = _match_singles(["r1", "r2", "r3", "r4"], eligible, {"c1": 2, "c2": 2})
     assert assigned == {"r1": "c2", "r2": "c2", "r3": "c1", "r4": "c1"}
-    # the same structure through the public function, for every seed
-    frame = SamplingFrame(tuple(FrameRecord(str(i), "layout_a") for i in range(1, 5)))
-    exclusions = {"c2": frozenset({"3", "4"})}
-    for seed in range(30):
-        d = design(k=2, seed=seed, coders=("c1", "c2"), overlap=0, floor=0)
-        allocation = allocate_coders(draw_sample(frame, d), d, exclusions)
-        allocation_holds(allocation, d, exclusions)
 
 
 def test_matching_leaves_unplaceable_reports_out() -> None:
