@@ -202,11 +202,16 @@ class ParameterInfo:
     contains_free_text
         True for clinical fields that later stages write only to
         ``*_CONTAINS_DATA`` outputs; the export guard reads this.
+    site_identifier
+        True for values that identify the testing site or its equipment
+        rather than the subject (device serial, software version); the
+        export guard decides whether they leave ``share/``.
     """
 
     kind: ParameterKind
     ratio: bool = False
     contains_free_text: bool = False
+    site_identifier: bool = False
 
 
 _N = ParameterKind.NUMBER
@@ -256,8 +261,8 @@ PARAMETER_INFO: dict[Parameter, ParameterInfo] = {
     Parameter.REFERENCE_SPIROMETRY: ParameterInfo(_T),
     Parameter.REFERENCE_VOLUMES: ParameterInfo(_T),
     Parameter.REFERENCE_GAS_TRANSFER: ParameterInfo(_T),
-    Parameter.SOFTWARE_VERSION: ParameterInfo(_T),
-    Parameter.DEVICE_SERIAL: ParameterInfo(_T),
+    Parameter.SOFTWARE_VERSION: ParameterInfo(_T, site_identifier=True),
+    Parameter.DEVICE_SERIAL: ParameterInfo(_T, site_identifier=True),
     Parameter.SESSION_QUALITY: ParameterInfo(_T),
     Parameter.FEV1_GRADE: ParameterInfo(_C),
     Parameter.FVC_GRADE: ParameterInfo(_C),
@@ -286,20 +291,36 @@ RATIO_PARAMETERS: frozenset[Parameter] = frozenset(
 FREE_TEXT_PARAMETERS: frozenset[Parameter] = frozenset(
     p for p, info in PARAMETER_INFO.items() if info.contains_free_text
 )
+SITE_IDENTIFIER_PARAMETERS: frozenset[Parameter] = frozenset(
+    p for p, info in PARAMETER_INFO.items() if info.site_identifier
+)
 
 NEVER_EXTRACT_WORDS: frozenset[str] = frozenset(
     {
+        # the person
         "name",
         "surname",
         "birth",
         "dob",
         "id",
         "nhi",
+        "mrn",
         "patient",
+        "address",
+        "phone",
+        "email",
+        # the people around the test
         "referrer",
+        "requester",
         "operator",
         "physician",
         "physiologist",
+        "doctor",
+        "consultant",
+        "gp",
+        "technician",
+        "nurse",
+        "clinician",
         "staff",
     }
 )

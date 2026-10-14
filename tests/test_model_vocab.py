@@ -7,6 +7,7 @@ from spirotrace.model import (
     NEVER_EXTRACT_WORDS,
     PARAMETER_INFO,
     RATIO_PARAMETERS,
+    SITE_IDENTIFIER_PARAMETERS,
     VALUE_ROLES,
     ColumnRole,
     Parameter,
@@ -118,6 +119,45 @@ def test_clinical_free_text_parameters_are_marked() -> None:
         "bdr_significant",
     }
     assert {p.value for p in FREE_TEXT_PARAMETERS} == expected
+
+
+def test_never_extract_words_cover_people_and_contact_details() -> None:
+    expected = {
+        "name",
+        "surname",
+        "birth",
+        "dob",
+        "id",
+        "nhi",
+        "mrn",
+        "patient",
+        "referrer",
+        "requester",
+        "operator",
+        "physician",
+        "physiologist",
+        "doctor",
+        "consultant",
+        "gp",
+        "technician",
+        "nurse",
+        "clinician",
+        "staff",
+        "address",
+        "phone",
+        "email",
+    }
+    assert expected <= NEVER_EXTRACT_WORDS
+
+
+def test_site_identifiers_are_marked_for_the_export_guard() -> None:
+    assert {p.value for p in SITE_IDENTIFIER_PARAMETERS} == {
+        "device_serial",
+        "software_version",
+    }
+    for parameter in Parameter:
+        info = PARAMETER_INFO[parameter]
+        assert info.site_identifier == (parameter in SITE_IDENTIFIER_PARAMETERS)
 
 
 def test_no_parameter_names_a_never_extract_field() -> None:
