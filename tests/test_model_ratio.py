@@ -21,7 +21,6 @@ FRACTION = RatioForm.FRACTION
         ("100", 1.0, PERCENT),
         ("0.5", 0.5, FRACTION),
         ("1.0", 1.0, FRACTION),
-        ("0", 0.0, FRACTION),
         # an explicit percent sign, with or without a space
         ("78 %", 0.78, PERCENT),
         ("100%", 1.0, PERCENT),
@@ -52,6 +51,11 @@ def test_ratio_to_fraction_and_form(
         "0.5%",
         "0%",
         "0.78 %",
+        # a ratio of zero is never printed; any zero form is an artefact
+        "0",
+        "0.0",
+        "0.00",
+        "00",
         "-78",
         "-0.5",
         "",
