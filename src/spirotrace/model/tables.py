@@ -118,6 +118,9 @@ def _pick(row: Mapping[str, str], columns: tuple[str, ...], name: str) -> Row:
     missing = [c for c in columns if c not in row]
     if missing:
         raise ModelError(f"{name} row lacks columns: {', '.join(missing)}")
+    unknown = [c for c in row if c not in columns]
+    if unknown:
+        raise ModelError(f"{name} row has unknown columns: {', '.join(unknown)}")
     return {c: row[c] for c in columns}
 
 
@@ -483,6 +486,15 @@ class Observation:
         _check_record_id(self.record_id)
         if self.template_version < 1:
             raise ModelError("template_version must be 1 or more")
+        if not isinstance(self.raw_text, str):
+            raise ModelError("raw_text must be a string")
+        if self.parsed_value is not None:
+            if isinstance(self.parsed_value, bool) or not isinstance(
+                self.parsed_value, int | float
+            ):
+                raise ModelError("parsed_value must be an int or a float")
+            # frozen dataclass: store ints as floats so rows and equality agree
+            object.__setattr__(self, "parsed_value", float(self.parsed_value))
         if not isinstance(self.value_state, ValueState):
             raise ModelError("value_state must be a ValueState")
         if not isinstance(self.read_method, ReadMethod):
@@ -651,7 +663,7 @@ class Observation:
             )
         run = _bool(r["second_reading_run"])
         return cls(
-            key=ObservationKey.from_row(r),
+            key=ObservationKey.from_row({c: r[c] for c in ObservationKey.COLUMNS}),
             record_id=r["record_id"],
             template_version=int(r["template_version"]),
             raw_text=r["raw_text"],

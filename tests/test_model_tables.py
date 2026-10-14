@@ -4,6 +4,7 @@ All values are synthetic.
 """
 
 from dataclasses import FrozenInstanceError, fields, replace
+from decimal import Decimal
 from hashlib import sha256
 from typing import Any
 
@@ -557,6 +558,29 @@ def test_float_round_trip_is_exact_for_awkward_values() -> None:
 
 
 # --- Rows and immutability --------------------------------------------------
+
+
+def test_raw_text_must_be_a_string() -> None:
+    with pytest.raises(ModelError, match="raw_text"):
+        obs(raw_text=None)
+    with pytest.raises(ModelError, match="raw_text"):
+        obs(raw_text=3.52)
+
+
+def test_parsed_value_is_stored_as_a_float() -> None:
+    o = obs(parsed_value=3, raw_text="3")
+    assert isinstance(o.parsed_value, float) and o.parsed_value == 3.0
+    assert Observation.from_row(o.to_row()) == o
+    for bad in (True, Decimal("3.52"), "3.52"):
+        with pytest.raises(ModelError, match="parsed_value"):
+            obs(parsed_value=bad)
+
+
+def test_from_row_refuses_unknown_columns() -> None:
+    for item in (record(), page(), key(), obs()):
+        row = {**item.to_row(), "future_column": "x"}
+        with pytest.raises(ModelError, match="future_column"):
+            type(item).from_row(row)
 
 
 def test_from_row_names_missing_columns() -> None:
