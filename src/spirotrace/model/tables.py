@@ -530,6 +530,13 @@ class Observation:
                 raise ModelError(
                     f"value_state {self.value_state.value} must not carry a parsed value"
                 )
+            blank = self.raw_text.strip() == ""
+            if self.value_state is ValueState.EMPTY and not blank:
+                raise ModelError("value_state empty requires blank raw_text")
+            if self.value_state is ValueState.DASH and blank:
+                raise ModelError(
+                    "value_state dash requires the printed dash in raw_text"
+                )
             return
         if kind is ParameterKind.NUMBER:
             if self.parsed_value is None or self.parsed_text is not None:

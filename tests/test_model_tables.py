@@ -313,6 +313,18 @@ def test_non_value_state_with_a_parsed_value_refused(state: ValueState) -> None:
         obs(value_state=state, **payload)
 
 
+def test_empty_needs_blank_raw_text_and_dash_needs_some() -> None:
+    with pytest.raises(ModelError, match="empty"):
+        obs(value_state=ValueState.EMPTY, raw_text="3.52", parsed_value=None)
+    blank = obs(value_state=ValueState.EMPTY, raw_text="  	", parsed_value=None)
+    assert Observation.from_row(blank.to_row()) == blank
+    with pytest.raises(ModelError, match="dash"):
+        obs(value_state=ValueState.DASH, raw_text="", parsed_value=None)
+    with pytest.raises(ModelError, match="dash"):
+        obs(value_state=ValueState.DASH, raw_text="  ", parsed_value=None)
+    assert obs(value_state=ValueState.DASH, raw_text="–", parsed_value=None)
+
+
 def test_value_state_without_a_parsed_value_refused() -> None:
     with pytest.raises(ModelError, match="parsed_value"):
         obs(parsed_value=None)
