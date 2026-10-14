@@ -37,6 +37,7 @@ from .vocab import (
     TextSource,
     ValueState,
     kind_of,
+    never_extract_hits,
 )
 
 __all__ = [
@@ -67,5 +68,6 @@ __all__ = [
     "TextSource",
     "ValueState",
     "kind_of",
+    "never_extract_hits",
     "parse_ratio",
 ]

@@ -11,6 +11,7 @@ so an observation of one cannot be constructed.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -325,9 +326,34 @@ NEVER_EXTRACT_WORDS: frozenset[str] = frozenset(
         "nurse",
         "clinician",
         "staff",
+        # the sign-off line on the lab continuation page: a staff name and date
+        "signed by",
+        "authorised by",
+        "final:",
     }
 )
-"""Words that may not appear in any parameter name. A test enforces it."""
+"""Words and label phrases that may not appear in any parameter name or be
+declared as a template field. Matched by :func:`never_extract_hits`; a test
+enforces it for the parameters here."""
+
+_WORD_BREAK_RE = re.compile(r"[_\W]+")
+
+
+def _normalise(text: str) -> str:
+    return " ".join(_WORD_BREAK_RE.split(text.lower())).strip()
+
+
+def never_extract_hits(text: str) -> frozenset[str]:
+    """Return the :data:`NEVER_EXTRACT_WORDS` entries that ``text`` contains.
+
+    Matching is case-insensitive on whole words: underscores and punctuation
+    count as word breaks, so ``"signed_by_date"`` hits ``"signed by"`` and
+    ``"Final: Dr X"`` hits ``"final:"``, while ``"grid"`` does not hit ``"id"``.
+    """
+    haystack = f" {_normalise(text)} "
+    return frozenset(
+        entry for entry in NEVER_EXTRACT_WORDS if f" {_normalise(entry)} " in haystack
+    )
 
 
 def kind_of(parameter: Parameter) -> ParameterKind:

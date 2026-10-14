@@ -1,6 +1,6 @@
 """The fixed vocabularies: complete, consistent and free of never_extract fields."""
 
-import re
+import pytest
 
 from spirotrace.model import (
     FREE_TEXT_PARAMETERS,
@@ -16,6 +16,7 @@ from spirotrace.model import (
     TextSource,
     ValueState,
     kind_of,
+    never_extract_hits,
 )
 
 
@@ -151,6 +152,35 @@ def test_never_extract_words_cover_people_and_contact_details() -> None:
     assert expected <= NEVER_EXTRACT_WORDS
 
 
+def test_never_extract_covers_the_sign_off_line() -> None:
+    # the lab continuation page ends with a sign-off: a staff name and a date
+    assert {"signed by", "authorised by", "final:"} <= NEVER_EXTRACT_WORDS
+
+
+@pytest.mark.parametrize(
+    ("text", "hits"),
+    [
+        ("Signed by", {"signed by"}),
+        ("signed_by_date", {"signed by"}),
+        ("Final: Dr X", {"final:"}),
+        ("final_report", {"final:"}),
+        ("Authorised  by:", {"authorised by"}),
+        ("patient_id", {"patient", "id"}),
+        ("Patient ID", {"patient", "id"}),
+        # whole words only: no hit inside another word
+        ("grid", set()),
+        ("signed_byline", set()),
+        ("FEV1", set()),
+        ("technical_comments", set()),
+        ("", set()),
+    ],
+)
+def test_never_extract_hits_match_whole_words_and_phrases(
+    text: str, hits: set[str]
+) -> None:
+    assert never_extract_hits(text) == frozenset(hits)
+
+
 def test_site_identifiers_are_marked_for_the_export_guard() -> None:
     assert {p.value for p in SITE_IDENTIFIER_PARAMETERS} == {
         "device_serial",
@@ -163,10 +193,7 @@ def test_site_identifiers_are_marked_for_the_export_guard() -> None:
 
 def test_no_parameter_names_a_never_extract_field() -> None:
     for parameter in Parameter:
-        words = set(re.split(r"[_\W]+", parameter.value.lower())) | set(
-            re.split(r"[_\W]+", parameter.name.lower())
-        )
-        hit = words & NEVER_EXTRACT_WORDS
+        hit = never_extract_hits(parameter.value) | never_extract_hits(parameter.name)
         assert not hit, f"{parameter} names a never_extract field: {hit}"
 
 
