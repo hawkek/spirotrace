@@ -426,11 +426,13 @@ class Observation:
         ``(x0, y0, x1, y1)`` in page points; None for inferred, manual and
         not-on-page values.
     read_method, ocr_confidence
-        How the text was read and Tesseract's 0 to 100 confidence (None for
-        the text layer).
+        How the text was read and Tesseract's 0 to 100 confidence. The
+        confidence is allowed only when ``read_method`` is ``ocr``.
     second_reading_run, second_reading
         Whether the per-cell second OCR ran, and what it read (``""`` when it
-        ran and read nothing; None when it did not run).
+        ran and read nothing; None when it did not run). It runs on the
+        observation's bbox, so it needs one and never runs on a not-on-page,
+        inferred or manual value.
     value_state
         What the cell held.
     """
@@ -492,12 +494,31 @@ class Observation:
         ):
             raise ModelError("unit is only allowed on number parameters")
         self._check_bbox()
-        _check_finite("ocr_confidence", self.ocr_confidence)
-        if self.second_reading_run and self.second_reading is None:
-            raise ModelError(
-                "second_reading must be a string when second_reading_run is true"
-            )
-        if not self.second_reading_run and self.second_reading is not None:
+        self._check_ocr_fields()
+
+    def _check_ocr_fields(self) -> None:
+        if self.ocr_confidence is not None:
+            if self.read_method is not ReadMethod.OCR:
+                raise ModelError(
+                    "ocr_confidence is only allowed when read_method is ocr"
+                )
+            _check_finite("ocr_confidence", self.ocr_confidence)
+            if not 0.0 <= self.ocr_confidence <= 100.0:
+                raise ModelError(
+                    f"ocr_confidence must be between 0 and 100, got {self.ocr_confidence!r}"
+                )
+        if self.second_reading_run:
+            if self.second_reading is None:
+                raise ModelError(
+                    "second_reading must be a string when second_reading_run is true"
+                )
+            if self.bbox is None or self.value_state is ValueState.NOT_ON_PAGE:
+                raise ModelError("second_reading_run needs a bbox on the page to crop")
+            if self.read_method in (ReadMethod.MANUAL, ReadMethod.INFERRED):
+                raise ModelError(
+                    "second_reading_run is not allowed on a manual or inferred value"
+                )
+        elif self.second_reading is not None:
             raise ModelError(
                 "second_reading must be None when second_reading_run is false"
             )

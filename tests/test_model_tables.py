@@ -442,6 +442,47 @@ def test_second_reading_mismatch_refused() -> None:
         obs(second_reading_run=False, second_reading="")
 
 
+def test_second_reading_needs_a_bbox_on_a_page() -> None:
+    # the second OCR crops the observation's bbox, so there is nothing to run on
+    with pytest.raises(ModelError, match="second_reading_run"):
+        obs(bbox=None, second_reading_run=True, second_reading="3.52")
+    with pytest.raises(ModelError, match="second_reading_run"):
+        obs(
+            value_state=ValueState.NOT_ON_PAGE,
+            raw_text="",
+            parsed_value=None,
+            bbox=None,
+            second_reading_run=True,
+            second_reading="",
+        )
+    assert obs(
+        read_method=ReadMethod.POSITION_FALLBACK,
+        second_reading_run=True,
+        second_reading="3.52",
+    )
+
+
+@pytest.mark.parametrize("method", [ReadMethod.MANUAL, ReadMethod.INFERRED])
+def test_manual_and_inferred_readings_have_no_ocr_fields(method: ReadMethod) -> None:
+    with pytest.raises(ModelError, match="second_reading_run"):
+        obs(read_method=method, second_reading_run=True, second_reading="3.52")
+    with pytest.raises(ModelError, match="ocr_confidence"):
+        obs(read_method=method, ocr_confidence=90.0)
+
+
+def test_ocr_confidence_only_with_ocr_and_within_0_to_100() -> None:
+    with pytest.raises(ModelError, match="ocr_confidence"):
+        obs(read_method=ReadMethod.TEXT_LAYER, ocr_confidence=87.5)
+    with pytest.raises(ModelError, match="ocr_confidence"):
+        obs(read_method=ReadMethod.POSITION_FALLBACK, ocr_confidence=87.5)
+    for bad in (-0.1, 100.1, 250.0):
+        with pytest.raises(ModelError, match="ocr_confidence"):
+            obs(read_method=ReadMethod.OCR, ocr_confidence=bad)
+    for ok in (0.0, 100.0, 87.5, None):
+        o = obs(read_method=ReadMethod.OCR, ocr_confidence=ok)
+        assert Observation.from_row(o.to_row()) == o
+
+
 def test_not_on_page_has_no_text_and_no_bbox() -> None:
     with pytest.raises(ModelError, match="not_on_page"):
         obs(
