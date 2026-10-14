@@ -294,8 +294,12 @@ class Page:
 class ObservationKey:
     """The natural key of a value read from a report (seam 1).
 
-    Trial columns are keyed by display position (Best = 1, then 2, 3, ...);
-    the printed trial number is its own observation, never part of the key.
+    Trial columns are keyed by display position: position 1 always means the
+    Best column and the trial columns take 2, 3, ... in x-order. When a
+    report has no Best column, position 1 stays vacant and the trials keep
+    2, 3, ..., so a correction event keyed to position 1 means Best in every
+    file of a layout. The printed trial number is its own observation
+    (parameter ``trial_number``), never part of the key.
     """
 
     file_hash: str
