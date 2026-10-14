@@ -22,11 +22,10 @@ FRACTION = RatioForm.FRACTION
         ("0.5", 0.5, FRACTION),
         ("1.0", 1.0, FRACTION),
         ("0", 0.0, FRACTION),
-        # an explicit percent sign always wins, with or without a space
+        # an explicit percent sign, with or without a space
         ("78 %", 0.78, PERCENT),
         ("100%", 1.0, PERCENT),
-        ("1%", 0.01, PERCENT),
-        ("0.5%", 0.005, PERCENT),
+        ("1.5%", 0.015, PERCENT),
         # magnitude rule: anything above 1 is a percent, even when implausible
         ("1.5", 0.015, PERCENT),
         ("12.3", 0.123, PERCENT),
@@ -47,6 +46,12 @@ def test_ratio_to_fraction_and_form(
         "101",
         "100.1",
         "150%",
+        # a percent sign on 1 or less is an OCR artefact, decided 14 Oct
+        "1%",
+        "1.0%",
+        "0.5%",
+        "0%",
+        "0.78 %",
         "-78",
         "-0.5",
         "",

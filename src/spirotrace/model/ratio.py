@@ -29,8 +29,10 @@ def parse_ratio(text: str) -> tuple[float, RatioForm]:
       percent (``"78"``, ``"78.0"``, ``"100"`` give 0.78, 0.78, 1.0); a number
       from 0 to 1 inclusive is a fraction (``"0.78"``, ``"0.5"``, ``"1"`` give
       0.78, 0.5, 1.0).
-    - Anything above 100, a ``%`` on a value above 100, a negative sign or
-      non-numeric text raises :class:`RatioParseError`.
+    - Anything above 100, a ``%`` on a value above 100 or of 1 or less (an
+      OCR artefact, never a printed ratio), a negative sign or non-numeric
+      text raises :class:`RatioParseError`; the caller records ``unreadable``
+      with the raw text kept.
 
     Arithmetic goes through :class:`~decimal.Decimal`, so ``"78"`` gives the
     float ``0.78`` exactly as written, and the row form prints ``0.78``.
@@ -55,6 +57,11 @@ def parse_ratio(text: str) -> tuple[float, RatioForm]:
         raise RatioParseError(f"not a ratio: {text!r}") from exc
     if number > 100:
         raise RatioParseError(f"ratio above 100: {text!r}")
-    if m.group("percent") or number > 1:
+    if m.group("percent"):
+        if number <= 1:
+            # No physiological ratio is printed as 1% or less; this is an OCR artefact.
+            raise RatioParseError(f"percent sign on a value of 1 or less: {text!r}")
+        return float(number / 100), RatioForm.PERCENT
+    if number > 1:
         return float(number / 100), RatioForm.PERCENT
     return float(number), RatioForm.FRACTION
