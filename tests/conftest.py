@@ -17,8 +17,9 @@ def synthetic_frame(n_a: int = 58, n_b: int = 44) -> SamplingFrame:
 
     Layout ``layout_a`` gets ``post_bd`` on every third record and ``hard`` on
     every fifth; ``layout_b`` gets ``volumes`` on all but every seventh record
-    and ``hard`` on every fourth. Record ids are plain numbers, with an ``A``
-    and ``B`` pair for the first id so both record-id forms appear.
+    and ``hard`` on every fourth. Record ids are five-digit numbers (so no
+    count printed by the generator can contain one), with an ``A`` and ``B``
+    pair for the first id so both record-id forms appear.
     """
     records = []
     for i in range(n_a):
@@ -27,7 +28,7 @@ def synthetic_frame(n_a: int = 58, n_b: int = 44) -> SamplingFrame:
             features.add("post_bd")
         if i % 5 == 0:
             features.add("hard")
-        rid = "1A" if i == 0 else str(100 + i)
+        rid = "1A" if i == 0 else str(90000 + i)
         records.append(FrameRecord(rid, "layout_a", frozenset(features)))
     for i in range(n_b):
         features = set()
@@ -35,7 +36,7 @@ def synthetic_frame(n_a: int = 58, n_b: int = 44) -> SamplingFrame:
             features.add("volumes")
         if i % 4 == 0:
             features.add("hard")
-        rid = "1B" if i == 0 else str(200 + i)
+        rid = "1B" if i == 0 else str(80000 + i)
         records.append(FrameRecord(rid, "layout_b", frozenset(features)))
     return SamplingFrame(tuple(records))
 
