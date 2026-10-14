@@ -1,4 +1,5 @@
 """Command line entry point: spirotrace <command>."""
+
 import argparse
 import sys
 
