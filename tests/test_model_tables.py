@@ -352,14 +352,11 @@ def test_date_parameter_needs_an_iso_date() -> None:
         unit=None,
     )
     assert Observation.from_row(o.to_row()) == o
-    with pytest.raises(ModelError, match="ISO date"):
-        obs(
-            key=k,
-            raw_text="03/04/2024",
-            parsed_value=None,
-            parsed_text="03/04/2024",
-            unit=None,
-        )
+    # only the extended YYYY-MM-DD form: the other forms fromisoformat accepts
+    # on Python 3.11+ would make one date two different strings
+    for bad in ("03/04/2024", "20240403", "2024-W14-3", "2024-4-3", "2024-04-03T00:00"):
+        with pytest.raises(ModelError, match="ISO date"):
+            obs(key=k, raw_text=bad, parsed_value=None, parsed_text=bad, unit=None)
 
 
 def test_unit_only_on_number_parameters_and_never_empty() -> None:

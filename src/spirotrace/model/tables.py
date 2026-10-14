@@ -562,11 +562,15 @@ class Observation:
             )
         if kind is ParameterKind.DATE:
             try:
-                date.fromisoformat(self.parsed_text)
-            except ValueError as exc:
+                strict = (
+                    date.fromisoformat(self.parsed_text).isoformat() == self.parsed_text
+                )
+            except ValueError:
+                strict = False
+            if not strict:
                 raise ModelError(
-                    f"parsed_text must be an ISO date, got {self.parsed_text!r}"
-                ) from exc
+                    f"parsed_text must be an ISO date YYYY-MM-DD, got {self.parsed_text!r}"
+                )
 
     def _check_printed_form(self) -> None:
         is_ratio_value = (
