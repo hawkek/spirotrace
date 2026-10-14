@@ -1,0 +1,89 @@
+# spirotrace .gitignore
+# Data-protecting rules first. This repository must never hold reports,
+# extracted values, corrections, caches or study settings. Generated
+# 14 Oct 2026; changes are ask-first (coding file).
+
+# --- Study project folders (spirotrace layout) ---------------------------
+reports/
+cache/
+review/
+outputs/
+runs/
+profiles/
+share/
+spiro.toml
+
+# --- Anything labelled as holding data -----------------------------------
+*_CONTAINS_DATA*
+*_LOCAL_ONLY*
+*MAY_CONTAIN_IDENTIFIERS*
+
+# --- v0.3.16 outputs, in case a study folder is ever copied in ------------
+extraction_output/
+extraction_raw/
+gli_input*
+gli_output*
+values_long*.csv
+subjects_wide*.csv
+trend_long*.csv
+review*.csv
+corrections*.csv
+subjects_QC*.xlsx
+variable_summary*.csv
+template_survey*.txt
+layout_dump*.txt
+pages*.csv
+
+# --- Report files and spreadsheets --------------------------------------
+# Real reports are PDFs; synthetic test PDFs are generated, never committed
+# unless placed under tests/fixtures/synthetic/ on purpose.
+*.pdf
+!tests/fixtures/synthetic/**/*.pdf
+*.xlsx
+*.xls
+*.xlsm
+
+# --- Private material kept out until decided otherwise -------------------
+# Christchurch templates (neutral names), their fixtures, the redacted
+# regression set, the v0.3 key mapping and parity logs live here.
+private/
+docs_local/
+
+# --- Claude instructions (local only, decided 8 Oct) ---------------------
+CLAUDE.local.md
+.claude/settings.local.json
+
+# --- Notebooks: outputs may hold values ----------------------------------
+*.ipynb
+.ipynb_checkpoints/
+
+# --- Python build and environments --------------------------------------
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# --- R (rspiro bridge) ---------------------------------------------------
+.Rhistory
+.RData
+.Rproj.user/
+
+# --- Editors and OS ------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
