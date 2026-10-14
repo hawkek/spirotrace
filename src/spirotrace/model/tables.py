@@ -428,11 +428,14 @@ class Observation:
     read_method, ocr_confidence
         How the text was read and Tesseract's 0 to 100 confidence. The
         confidence is allowed only when ``read_method`` is ``ocr``.
+        ``ocr_cell`` is refused here: the second reading never replaces the
+        first without a reviewer event.
     second_reading_run, second_reading
-        Whether the per-cell second OCR ran, and what it read (``""`` when it
-        ran and read nothing; None when it did not run). It runs on the
-        observation's bbox, so it needs one and never runs on a not-on-page,
-        inferred or manual value.
+        Whether the per-cell second OCR (read method ``ocr_cell``) ran, and
+        what it read (``""`` when it ran and read nothing; None when it did
+        not run). This is the only place the second reading is stored. It
+        runs on the observation's bbox, so it needs one and never runs on a
+        not-on-page, inferred or manual value.
     value_state
         What the cell held.
     """
@@ -484,6 +487,10 @@ class Observation:
             raise ModelError("value_state must be a ValueState")
         if not isinstance(self.read_method, ReadMethod):
             raise ModelError("read_method must be a ReadMethod")
+        if self.read_method is ReadMethod.OCR_CELL:
+            raise ModelError(
+                "ocr_cell is the second reading's method; it lives in second_reading"
+            )
         self._check_parsed()
         self._check_printed_form()
         if self.unit == "":

@@ -482,6 +482,20 @@ def test_manual_and_inferred_readings_have_no_ocr_fields(method: ReadMethod) -> 
         obs(read_method=method, ocr_confidence=90.0)
 
 
+def test_ocr_cell_is_never_a_primary_read_method() -> None:
+    # the second per-cell reading lives only in second_reading; applying it
+    # to the observation itself would bypass the reviewer event
+    with pytest.raises(ModelError, match="ocr_cell"):
+        obs(read_method=ReadMethod.OCR_CELL)
+    with pytest.raises(ModelError, match="ocr_cell"):
+        obs(
+            read_method=ReadMethod.OCR_CELL,
+            raw_text="3.S2",
+            parsed_value=None,
+            value_state=ValueState.UNREADABLE,
+        )
+
+
 def test_ocr_confidence_only_with_ocr_and_within_0_to_100() -> None:
     with pytest.raises(ModelError, match="ocr_confidence"):
         obs(read_method=ReadMethod.TEXT_LAYER, ocr_confidence=87.5)

@@ -27,7 +27,13 @@ class ValueState(StrEnum):
 
 
 class ReadMethod(StrEnum):
-    """How the raw text was obtained."""
+    """How the raw text was obtained.
+
+    ``OCR_CELL`` names the per-cell second OCR reading. That reading lives only
+    in ``Observation.second_reading`` (and the second-OCR cache), so it is
+    never the read method of an observation itself: the second reading is a
+    comparison and a suggestion, applied only through a reviewer event.
+    """
 
     TEXT_LAYER = "text_layer"
     OCR = "ocr"
