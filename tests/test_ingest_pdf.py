@@ -53,7 +53,7 @@ def test_words_have_normalised_boxes_and_the_hash_is_sha256(tmp_path: Path) -> N
     assert abs(first.bottom - (PAGE_H - 760) / PAGE_H) < 0.004
     assert page.text_source is TextSource.TEXT_LAYER
     assert page.rotation == 0
-    assert page.ink is None  # enough words: ink not measured
+    assert 0.0 < page.ink < 0.05
     assert [ln.text for ln in page.lines][:2] == [
         "Alpha Beta Gamma Delta",
         "Parameter 1.23 4.56",
@@ -82,9 +82,9 @@ def test_near_empty_page_gets_an_ink_measurement_and_counts_as_blank(
 ) -> None:
     f = load_pdf(write(tmp_path, make_pdf([[("x", 72, 700)], ITEMS])), ORIENT, norm)
     blank, full = f.pages
-    assert blank.ink is not None and blank.ink < 0.001
+    assert blank.ink < 0.001
     assert blank.is_blank
-    assert full.ink is None and not full.is_blank
+    assert full.ink > blank.ink and not full.is_blank
     empty = load_pdf(write(tmp_path, make_pdf([[]]), "e.pdf"), ORIENT, norm).pages[0]
     assert empty.words == ()
     assert empty.text_source is TextSource.NONE

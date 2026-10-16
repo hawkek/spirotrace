@@ -33,8 +33,6 @@ BLANK_MAX_WORDS = 10
 BLANK_MAX_INK = 0.001
 """Dark-pixel fraction below which a near-wordless page is blank (a sign-off
 page measured 0.2% ink, table pages 13% to 40%)."""
-INK_CHECK_MAX_WORDS = 15
-"""Ink is measured only for pages with fewer words than this."""
 UPRIGHT_SCORE = 4
 """Orientation words needed at rotation 0 to skip trying the other three."""
 
@@ -55,16 +53,13 @@ class IngestedPage:
     rotation: int
     """Extra rotation applied beyond the page's own ``/Rotate``: 0, 90, 180, 270."""
     skew: float
-    ink: float | None
-    """Dark-pixel fraction, measured only for near-wordless pages."""
+    ink: float
+    """Dark-pixel fraction of the page image (v0.3.16 measured it only for
+    near-wordless pages; the pages table wants it for every page)."""
 
     @property
     def is_blank(self) -> bool:
-        return (
-            len(self.words) < BLANK_MAX_WORDS
-            and self.ink is not None
-            and self.ink < BLANK_MAX_INK
-        )
+        return len(self.words) < BLANK_MAX_WORDS and self.ink < BLANK_MAX_INK
 
 
 @dataclass(frozen=True, slots=True)
@@ -202,9 +197,7 @@ def load_pdf(
                         break
                 assert best is not None
                 _, extra, words = best
-                ink = (
-                    ink_fraction(data, i) if len(words) < INK_CHECK_MAX_WORDS else None
-                )
+                ink = ink_fraction(data, i)
                 words, skew = deskew(words)
                 source = TextSource.TEXT_LAYER if words else TextSource.NONE
                 pages.append(

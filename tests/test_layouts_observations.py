@@ -134,3 +134,14 @@ def test_read_method_is_recorded() -> None:
         Parameter.FEV1, "3.20", unit="L", read_method=ReadMethod.POSITION_FALLBACK
     ).observation
     assert o.read_method is ReadMethod.POSITION_FALLBACK
+
+
+def test_parsed_value_override_keeps_the_raw_header_text() -> None:
+    o = build(
+        Parameter.TRIAL_NUMBER, "Trial2", ColumnRole.TRIAL, parsed_value=2
+    ).observation
+    assert (
+        o.raw_text == "Trial2"
+        and o.parsed_value == 2.0
+        and o.value_state is ValueState.VALUE
+    )

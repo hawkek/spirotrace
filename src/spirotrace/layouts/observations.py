@@ -64,6 +64,7 @@ def build_observation(
     unit: str | None = None,
     not_on_page: bool = False,
     parsed_text: str | None = None,
+    parsed_value: float | None = None,
 ) -> Built:
     """Make an observation of ``key`` from the cell text ``raw``.
 
@@ -71,8 +72,10 @@ def build_observation(
     ``dash``, blank text ``empty``, anything else unparseable ``unreadable``
     with the raw text kept). Category and text parameters take ``raw`` as
     their value unless ``parsed_text`` overrides it; date parameters are
-    parsed day-first to ISO. ``not_on_page`` records a cell the layout has
-    but this report does not print.
+    parsed day-first to ISO. ``parsed_value`` overrides the number parsed
+    from ``raw`` (a printed trial number whose raw text is the header word).
+    ``not_on_page`` records a cell the layout has but this report does not
+    print.
     """
     kind = kind_of(key.parameter)
     conditions: list[Condition] = []
@@ -90,6 +93,22 @@ def build_observation(
             read_method,
             ValueState.NOT_ON_PAGE,
             None,
+        )
+        return Built(obs)
+    if kind is ParameterKind.NUMBER and parsed_value is not None:
+        obs = _make(
+            key,
+            record_id,
+            template_version,
+            raw,
+            parsed_value,
+            None,
+            unit,
+            None,
+            False,
+            read_method,
+            ValueState.VALUE,
+            bbox,
         )
         return Built(obs)
     if kind is ParameterKind.NUMBER:
