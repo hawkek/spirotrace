@@ -19,7 +19,9 @@ classifiers = [
 ]
 # Dependencies are added as modules are ported (planned: pdfplumber, pypdfium2, Pillow, numpy, openpyxl, PyYAML).
 # openpyxl: coding workbooks (evaluate) and, later, the export workbook.
-dependencies = ["openpyxl>=3.1"]
+# pdfplumber: words and characters of the text layer (ingest).
+# pypdfium2 and Pillow: page images for the blank-page ink check and the image rules (ingest).
+dependencies = ["openpyxl>=3.1", "pdfplumber>=0.11", "pypdfium2>=4.30", "Pillow>=10"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7", "ruff==0.17.0", "mypy>=1.10", "types-openpyxl"]
