@@ -30,6 +30,7 @@ from .tokens import (
     FLAG_CHAR_FIX,
     FLAG_COMMA,
     FLAG_DASH,
+    FLAG_DASH_VARIANT,
     FLAG_MINUS_GUESS,
     FLAG_STAR,
     FLAG_UNPARSEABLE,
@@ -41,6 +42,7 @@ _TOKEN_CONDITIONS = (
     (FLAG_CHAR_FIX, cond.OCR_CHAR_SUBSTITUTION),
     (FLAG_COMMA, cond.DECIMAL_COMMA),
     (FLAG_MINUS_GUESS, cond.MINUS_GUESSED),
+    (FLAG_DASH_VARIANT, cond.DASH_READ_AS_VARIANT),
     (FLAG_UNPARSEABLE, cond.NOT_A_NUMBER),
 )
 
@@ -69,7 +71,8 @@ def build_observation(
     """Make an observation of ``key`` from the cell text ``raw``.
 
     Number parameters are parsed with the token grammar (a dash gives state
-    ``dash``, blank text ``empty``, anything else unparseable ``unreadable``
+    ``dash``, also when OCR read it as ``~``, ``_`` or ``=``, which adds a
+    condition; blank text ``empty``; anything else unparseable ``unreadable``
     with the raw text kept). Category and text parameters take ``raw`` as
     their value unless ``parsed_text`` overrides it; date parameters are
     parsed day-first to ISO. ``parsed_value`` overrides the number parsed

@@ -46,8 +46,18 @@ def test_number_value_with_unit_and_bbox() -> None:
     ],
 )
 def test_empty_and_dash_states(raw: str, state: ValueState) -> None:
-    o = build(Parameter.FVC, raw, unit="L").observation
+    b = build(Parameter.FVC, raw, unit="L")
+    o = b.observation
     assert o.value_state is state and o.parsed_value is None and o.raw_text == raw
+    assert b.conditions == ()  # a printed dash is not flagged
+
+
+@pytest.mark.parametrize("raw", ["~", "_", "=", "~~"])
+def test_dash_read_by_ocr_as_a_variant_is_a_dash_with_a_condition(raw: str) -> None:
+    b = build(Parameter.FVC, raw, unit="L")
+    o = b.observation
+    assert o.value_state is ValueState.DASH and o.raw_text == raw
+    assert [c.code for c in b.conditions] == [cond.DASH_READ_AS_VARIANT]
 
 
 def test_unparseable_number_is_unreadable_with_raw_kept() -> None:

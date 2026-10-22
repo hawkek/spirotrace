@@ -4,7 +4,14 @@ import datetime as dt
 
 import pytest
 
-from spirotrace.layouts import DASHES, is_numericish, is_unit, parse_date, parse_number
+from spirotrace.layouts import (
+    DASH_OCR_VARIANTS,
+    DASHES,
+    is_numericish,
+    is_unit,
+    parse_date,
+    parse_number,
+)
 
 
 @pytest.mark.parametrize(
@@ -49,6 +56,10 @@ def test_parse_number_values(
         ("—", {"dash"}),  # em dash
         ("−", {"dash"}),  # minus sign
         ("--", {"dash"}),
+        ("~", {"dash", "dash_variant"}),  # OCR readings of a printed dash
+        ("_", {"dash", "dash_variant"}),
+        ("=", {"dash", "dash_variant"}),
+        (" == ", {"dash", "dash_variant"}),
         ("6.805.60", {"unparseable"}),  # two numbers merged into one token
         ("N/A", {"unparseable"}),
         ("abc", {"unparseable"}),
@@ -69,6 +80,17 @@ def test_marker_on_a_dash_is_still_a_dash() -> None:
 
 def test_dash_set_covers_printed_and_ocr_forms() -> None:
     assert {"-", "–", "—", "−"} <= DASHES
+    assert DASH_OCR_VARIANTS == {"~", "_", "="}
+
+
+def test_dash_variant_before_digits_is_still_a_minus_sign() -> None:
+    np = parse_number("~0.55")
+    assert np.value == -0.55 and set(np.flags) == {"minus_guess"}
+    assert parse_number("_1.2").value == -1.2
+
+
+def test_marker_on_a_dash_variant() -> None:
+    assert set(parse_number("~*").flags) == {"dash", "dash_variant", "star"}
 
 
 @pytest.mark.parametrize(
@@ -79,6 +101,9 @@ def test_dash_set_covers_printed_and_ocr_forms() -> None:
         ("–", True),
         ("O.55", True),
         ("~0.07", True),
+        ("~", True),  # a printed dash OCR read as ~, _ or =
+        ("=", True),
+        ("_", True),
         ("3.6B", True),
         ("97%", True),
         ("Pre", False),

@@ -38,6 +38,7 @@ from .text import (
     ratio,
 )
 from .tokens import (
+    DASH_OCR_VARIANTS,
     DASHES,
     STAR_CHARS,
     NumberParse,
@@ -50,6 +51,7 @@ from .tokens import (
 
 __all__ = [
     "DASHES",
+    "DASH_OCR_VARIANTS",
     "STAR_CHARS",
     "Built",
     "Cell",

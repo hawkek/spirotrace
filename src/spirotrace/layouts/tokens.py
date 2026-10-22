@@ -3,6 +3,11 @@
 Which characters count as a printed dash, which OCR confusions are repaired
 (``O`` for ``0``, ``~`` for a minus) and which characters are the report's
 out-of-range marker are decided here and nowhere else.
+
+A cell holding only ``~``, ``_`` or ``=`` is OCR's reading of a printed dash
+(the scanner's short horizontal stroke); it is a dash, with the ``dash_variant``
+flag so the reading can be noted. A leading ``~`` or ``_`` before digits is a
+minus sign instead.
 """
 
 from __future__ import annotations
@@ -15,6 +20,10 @@ DASHES: frozenset[str] = frozenset({"-", "–", "—", "−", "--", "‐", "‑"
 """Printed-dash forms and their common OCR readings."""
 
 _DASH_VARIANTS = ("‐", "‑", "‒", "–", "—", "−", "﹣", "－")
+
+DASH_OCR_VARIANTS: frozenset[str] = frozenset({"~", "_", "="})
+"""What OCR makes of a printed dash on its own in a cell."""
+_DASH_OCR_RE = re.compile(r"[~_=]+")
 
 _CONF = str.maketrans(
     {
@@ -49,6 +58,7 @@ FLAG_STAR = "star"
 FLAG_MINUS_GUESS = "minus_guess"
 FLAG_EMPTY = "empty"
 FLAG_DASH = "dash"
+FLAG_DASH_VARIANT = "dash_variant"
 FLAG_COMMA = "comma"
 FLAG_CHAR_FIX = "char_fix"
 FLAG_UNPARSEABLE = "unparseable"
@@ -77,9 +87,12 @@ def clean_token(t: str) -> str:
 
 def is_numericish(t: str) -> bool:
     """True for a dash or a token made of digits and their OCR look-alikes."""
-    s = clean_token(t)
+    s = t.strip()
     for ch in STAR_CHARS:
         s = s.replace(ch, "")
+    if _DASH_OCR_RE.fullmatch(s.strip()):
+        return True  # OCR's reading of a printed dash
+    s = clean_token(s)
     if s in DASHES:
         return True
     if not re.search(r"\d", s):
@@ -92,7 +105,8 @@ def parse_number(raw: str) -> NumberParse:
 
     The flags say what happened: ``star`` (marker removed), ``minus_guess``
     (a leading ``~`` or ``_`` read as a minus sign), ``comma`` (decimal comma),
-    ``char_fix`` (letters repaired to digits), ``empty``, ``dash`` or
+    ``char_fix`` (letters repaired to digits), ``empty``, ``dash`` (with
+    ``dash_variant`` when the dash was read as ``~``, ``_`` or ``=``) or
     ``unparseable``. A dash and an empty cell both give no value.
     """
     flags: set[str] = set()
@@ -105,6 +119,10 @@ def parse_number(raw: str) -> NumberParse:
         r"\(cid:\d+\)$", "", s
     )  # unmapped glyph after a number (usually the marker)
     s = s.strip().strip('[](){}:;,"` ')
+    if s and _DASH_OCR_RE.fullmatch(s):
+        return NumberParse(
+            None, frozenset(flags | {FLAG_DASH, FLAG_DASH_VARIANT}), None, ""
+        )
     for d in _DASH_VARIANTS:
         s = s.replace(d, "-")  # dash variants are a minus sign, not a decimal problem
     if re.match(r"^[~_¬]+\s*\d", s):  # a minus sign read as ~ or _ (common on z-scores)
