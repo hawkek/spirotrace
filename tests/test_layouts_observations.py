@@ -60,6 +60,17 @@ def test_dash_read_by_ocr_as_a_variant_is_a_dash_with_a_condition(raw: str) -> N
     assert [c.code for c in b.conditions] == [cond.DASH_READ_AS_VARIANT]
 
 
+def test_text_found_but_not_read_is_unreadable_with_raw_kept() -> None:
+    o = build(
+        Parameter.INTERPRETATION_SPIROMETRY,
+        "Spirometry is abnormal.",
+        ColumnRole.MEASURED,
+        unreadable=True,
+    ).observation
+    assert o.value_state is ValueState.UNREADABLE
+    assert o.raw_text == "Spirometry is abnormal." and o.parsed_text is None
+
+
 def test_unparseable_number_is_unreadable_with_raw_kept() -> None:
     b = build(Parameter.FVC, "N/A", unit="L")
     assert b.observation.value_state is ValueState.UNREADABLE
