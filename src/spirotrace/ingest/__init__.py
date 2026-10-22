@@ -1,7 +1,7 @@
 """Read each PDF once: words per page (orientation fixed, deskewed), ink, page images.
 
 Only this package opens PDFs. The cache planned for later steps is not here
-(v0.3.16 had none).
+(v0.3.14 had none).
 """
 
 from .pdf import (

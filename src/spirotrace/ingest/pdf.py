@@ -54,7 +54,7 @@ class IngestedPage:
     """Extra rotation applied beyond the page's own ``/Rotate``: 0, 90, 180, 270."""
     skew: float
     ink: float
-    """Dark-pixel fraction of the page image (v0.3.16 measured it only for
+    """Dark-pixel fraction of the page image (v0.3.14 measured it only for
     near-wordless pages; the pages table wants it for every page)."""
 
     @property

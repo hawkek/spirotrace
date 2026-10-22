@@ -1,6 +1,6 @@
 """Reading conditions: what the readers noticed, kept as data for the rules.
 
-Reading never decides a severity. Where v0.3.16 raised a flag inside reading
+Reading never decides a severity. Where v0.3.14 raised a flag inside reading
 (a row placed by position, a header only partly read, a token repaired), the
 port records a :class:`Condition` with a stable code; a rule in the checks
 layer turns conditions into flags.

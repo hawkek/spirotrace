@@ -657,7 +657,7 @@ def parse_table(
         if len(anchors) >= 2:
             ds = [b["cy"] - a["cy"] for a, b in itertools.pairwise(anchors)]
             pitch = max(0.008, min(0.03, statistics.median(ds)))
-        del pitch  # kept in v0.3.16 but unused there too
+        del pitch  # kept in v0.3.14 but unused there too
         unmatched = [
             row
             for row in rows
