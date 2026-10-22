@@ -44,8 +44,8 @@ pages*.csv
 *.xlsm
 
 # --- Private material kept out until decided otherwise -------------------
-# Christchurch templates (neutral names), their fixtures, the redacted
-# regression set, the v0.3 key mapping and parity logs live here.
+# Site-specific layout templates, their fixtures, the redacted regression
+# set, the v0.3 key mapping and parity logs live here.
 private/
 docs_local/
 
