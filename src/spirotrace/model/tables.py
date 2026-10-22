@@ -45,7 +45,7 @@ RECORD_ID_RE = re.compile(r"^([0-9]+|f[0-9a-f]{8})[AB]?(-([2-9]|[1-9][0-9]+))?$"
 """Record id forms.
 
 - ``11``: the subject id from the file name; ``11A`` and ``11B`` when one file
-  holds both layouts (the v0.3.16 form).
+  holds both layouts (the v0.3.14 form).
 - ``f`` plus the first eight hex characters of the file hash when the file
   name gives no subject id.
 - ``-2``, ``-3``, ... after either form for the second, third ... file with the
