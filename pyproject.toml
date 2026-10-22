@@ -37,6 +37,7 @@ spirotrace = "spirotrace.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
+"spirotrace" = ["rspiro_bridge.R"]
 "spirotrace.layouts" = ["templates/*.yaml"]
 
 [tool.pytest.ini_options]
