@@ -7,7 +7,9 @@ import pytest
 from pdf_helpers import PAGE_H, PAGE_W, make_pdf
 
 from spirotrace.ingest import (
+    BLANK_MAX_INK,
     IngestError,
+    Word,
     file_hash_of,
     ink_fraction,
     load_pdf,
@@ -105,6 +107,56 @@ def test_unreadable_file_raises_ingest_error(tmp_path: Path) -> None:
         load_pdf(write(tmp_path, b"not a pdf"), ORIENT, norm)
 
 
-def test_ocr_missing_is_refused_until_ported(tmp_path: Path) -> None:
-    with pytest.raises(IngestError, match="ocr.missing_pages"):
+def test_ocr_missing_needs_an_engine(tmp_path: Path) -> None:
+    with pytest.raises(IngestError, match="needs Tesseract"):
         load_pdf(write(tmp_path, make_pdf([ITEMS])), ORIENT, norm, ocr_missing=True)
+
+
+class _FakeTool:
+    version = "fake"
+
+    def __init__(self) -> None:
+        self.pages = 0
+
+    def page_words(self, image):
+        self.pages += 1
+        return [Word("3.05", 0.1, 0.2, 0.3, 0.32, 88.0)]
+
+    def cell(self, image):
+        return "", None
+
+
+def image_only_pdf(tmp_path: Path) -> Path:
+    """A scanned page with ink and no text layer: a grey picture saved as a PDF."""
+    from PIL import Image, ImageDraw
+
+    img = Image.new("L", (595, 842), 255)
+    ImageDraw.Draw(img).rectangle((100, 100, 500, 700), fill=0)
+    path = tmp_path / "scan.pdf"
+    img.save(path, "PDF", resolution=72)
+    return path
+
+
+def test_ocr_missing_reads_a_page_without_a_text_layer(tmp_path: Path) -> None:
+    path = image_only_pdf(tmp_path)
+    plain = load_pdf(path, ORIENT, norm).pages[0]
+    assert plain.text_source is TextSource.NONE and plain.ink > BLANK_MAX_INK
+    tool = _FakeTool()
+    page = load_pdf(path, ORIENT, norm, ocr_missing=True, tesseract=tool).pages[0]
+    assert tool.pages == 1
+    assert page.text_source is TextSource.OCR
+    assert [w.text for w in page.words] == ["3.05"] and page.words[0].conf == 88.0
+
+
+def test_ocr_missing_leaves_text_layer_and_blank_pages_alone(tmp_path: Path) -> None:
+    tool = _FakeTool()
+    f = load_pdf(
+        write(tmp_path, make_pdf([ITEMS, []])),
+        ORIENT,
+        norm,
+        ocr_missing=True,
+        tesseract=tool,
+    )
+    assert tool.pages == 0
+    assert f.pages[0].text_source is TextSource.TEXT_LAYER
+    assert f.pages[1].text_source is TextSource.NONE and f.pages[1].is_blank

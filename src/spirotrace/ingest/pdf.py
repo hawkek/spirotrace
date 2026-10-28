@@ -24,6 +24,7 @@ from PIL import Image, ImageOps
 
 from spirotrace.model import TextSource
 
+from .tesseract import PAGE_DPI, TesseractLike
 from .words import Line, Word, deskew, group_lines
 
 ROTATIONS = (0, 90, 180, 270)
@@ -156,6 +157,7 @@ def load_pdf(
     normalise: Callable[[str], str],
     *,
     ocr_missing: bool = False,
+    tesseract: TesseractLike | None = None,
 ) -> IngestedFile:
     """Read every page of ``path``.
 
@@ -167,17 +169,20 @@ def load_pdf(
         Words (after ``normalise``) that mark the upright orientation; the
         layout code supplies them.
     ocr_missing
-        OCR of pages without a text layer is not ported yet; True raises.
+        Read a page that has no text layer and is not blank with Tesseract
+        (``ocr.missing_pages``); its words carry ``text_source`` ``ocr``.
+    tesseract
+        The engine for ``ocr_missing``; required when it is True.
 
     Raises
     ------
     IngestError
-        If the file cannot be read, or ``ocr_missing`` is True.
+        If the file cannot be read, or ``ocr_missing`` is True without an engine.
     """
-    if ocr_missing:
+    if ocr_missing and tesseract is None:
         raise IngestError(
-            "ocr.missing_pages = true is not supported yet (second-reading step A4); "
-            "set it to false to run"
+            "ocr.missing_pages = true needs Tesseract: set tools.tesseract to its full "
+            "path, or set missing_pages to false"
         )
     path = Path(path)
     data = path.read_bytes()
@@ -198,8 +203,18 @@ def load_pdf(
                 assert best is not None
                 _, extra, words = best
                 ink = ink_fraction(data, i)
-                words, skew = deskew(words)
                 source = TextSource.TEXT_LAYER if words else TextSource.NONE
+                if (
+                    ocr_missing
+                    and tesseract is not None
+                    and len(words) < BLANK_MAX_WORDS
+                    and ink >= BLANK_MAX_INK
+                ):
+                    # no text layer but ink on the page: the copier's OCR missed it
+                    ocr_words = tesseract.page_words(render_page(data, i, PAGE_DPI))
+                    if ocr_words:
+                        words, source = ocr_words, TextSource.OCR
+                words, skew = deskew(words)
                 pages.append(
                     IngestedPage(
                         i + 1,

@@ -22,6 +22,8 @@ class Word:
     x1: float
     top: float
     bottom: float
+    conf: float | None = None
+    """Tesseract's 0 to 100 confidence for an OCR word; None for the text layer."""
 
     @property
     def cx(self) -> float:
@@ -130,5 +132,5 @@ def deskew(words: Sequence[Word]) -> tuple[list[Word], float]:
     out = []
     for w in words:
         d = -s * (w.cx - 0.5)
-        out.append(Word(w.text, w.x0, w.x1, w.top + d, w.bottom + d))
+        out.append(Word(w.text, w.x0, w.x1, w.top + d, w.bottom + d, w.conf))
     return out, s
