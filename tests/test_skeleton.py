@@ -12,5 +12,10 @@ def test_cli_without_command_prints_help(capsys):
 
 
 def test_unimplemented_command_says_so(capsys):
-    assert cli.main(["run"]) == 1
+    assert cli.main(["template"]) == 1
     assert "not implemented" in capsys.readouterr().out
+
+
+def test_run_without_settings_is_a_settings_error(tmp_path, capsys):
+    assert cli.main(["run", "--project", str(tmp_path)]) == 2
+    assert "spiro.toml" in capsys.readouterr().out
