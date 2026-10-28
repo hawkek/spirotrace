@@ -1,10 +1,12 @@
 # Plan: stored formats, resolve, CLI, export, QC report and review queue
 
-Status: draft for approval (gate G2), 28 October 2026. Nothing in it is built.
-It settles every ask-first item for the four phase 2 steps: A3 derive,
-A4 second OCR, A5 export and A6 review queue. It follows the rewrite plan and
-the runtime sequences; section 12 lists every place it departs from them, and
-section 13 the decisions still needed. No new runtime dependency is proposed.
+Status: approved at gate G2 on 28 October 2026 (draft the same day); the
+answers are folded into the sections below and listed in section 13. It
+settles every ask-first item for the four phase 2 steps: A3 derive, A4 second
+OCR, A5 export and A6 review queue. It follows the rewrite plan and the runtime
+sequences; section 12 lists every place it departs from them. No new runtime
+dependency; `spirotrace.model` and `spirotrace.evaluate` do not change; the
+only `config` change is the `templates.reader` key.
 
 Naming in this document: the two layouts are "the portable layout" and "the
 lab layout"; "the old script" is the version the port is measured against.
@@ -13,7 +15,7 @@ lab layout"; "the old script" is the version the port is measured against.
 
 | PR | Branch | Builds | Done when |
 | --- | --- | --- | --- |
-| 1 | `wp-a5-store-derive` | `store/` (checkpoints, stamps, alongside-writes), `pipeline.py` (the run), `resolve/`, `derive/`, the `derived.*` and `free_text.*` rules that need derived values, `spirotrace run` and the resolve and derive half of `spirotrace export` | A synthetic folder runs end to end into `outputs/raw/`; events applied by a test give the expected statuses, `flags_resolved` changes and derived rows; a value under reviewer disagreement is skipped by derive |
+| 1 | `wp-a5-store-derive` | `store/` (checkpoints, stamps, alongside-writes), `pipeline.py` (the run), `resolve/`, `derive/`, the `derived.*` and `free_text.*` rules that need derived values, `spirotrace run` and the resolve and derive half of `spirotrace export` | A synthetic folder runs end to end into `outputs/raw/`; events applied by a test give the expected statuses, `flags_resolved` changes and derived rows; a value under reviewer disagreement is skipped by derive; the private harness compares the derived values with the old script's derived fields on the five synthetic files, differences categorised as in A1 and A2, 0 unexplained |
 | 2 | `wp-a4-second-ocr` | The second reading on each observation's bbox, its cache, the `ocr.second_reading_*` rules, `ocr.missing_pages` | Cache hit on rerun and miss when the bbox or Tesseract version changes (unit tests); the four rules fire and do not fire on synthetic readings; the live Tesseract test skips with a reason where it is absent |
 | 3 | `wp-a5-export` | The dataset files, data dictionary, QC report, export guard and `share/` | Planted identifiers, free text, record ids and never-extract words never reach `share/` (test); the wide CSV blanks exactly what the derive rule blanks |
 | 4 | `wp-a6-review` | The flag queue server and page, events, timing, per-record rerun | A browser-free test drives the API: an answer appends one event, the queue shrinks, a corrected value clears its flag; a second submit while saving is ignored |
@@ -58,6 +60,7 @@ my_study/
     stamp.json
   review/
     events_<initials>.csv        checkpoint 3: one append-only file per reviewer
+    sessions_<initials>.csv      review sessions: wall-clock start and end
   profiles/<name>.toml           optional ablation switches
   runs/<name>/                   the same raw/ and outputs layout for a profile run
   share/                         written only by the export guard
@@ -135,7 +138,8 @@ model types have them. Nothing in `spirotrace.model` changes.
 
 Append-only, one file per reviewer, UTF-8, header written when the file is
 created, one row appended per answer under a file lock held only for the
-append (no instance lock). Columns:
+append (`msvcrt.locking` on Windows, `fcntl.flock` elsewhere; no instance
+lock). Columns:
 
 | Column | Meaning |
 | --- | --- |
@@ -150,6 +154,7 @@ append (no instance lock). Columns:
 | `before_raw`, `before_value` | the raw text and the parsed value or text the reviewer saw (the "before" of the audit trail) |
 | `note` | free text from the reviewer; required for `exclude` |
 | `open_rules` | space-separated rule ids open on the item when answered |
+| `shown_at` | ISO 8601 wall-clock time the item was shown; with `time` it gives per record the first-shown and last-answer times |
 | `elapsed_ms` | milliseconds from the item being shown to Enter (the timing the master prompt asks for) |
 | `source` | `app` (an import would write `import` with a fingerprint; not built) |
 | `source_fingerprint` | `""` for the app |
@@ -158,12 +163,19 @@ append (no instance lock). Columns:
 Keyboard answers in the queue map to actions as follows: a value typed is
 `typed` (validated by the token grammar for number parameters; `-` alone is
 `dash`); `=` is `as_read`; `na` is `not_readable`; `empty` is `empty`;
-`struck` (optionally `struck 2.98`) is `struck`; `x` with a note is `exclude`;
-`withdraw` retracts this reviewer's earlier answer. `empty`, `dash`, `exclude`
-and `withdraw` go beyond the decided four (value, `=`, `na`, struck) and are
-section 13 questions; without them a reviewer cannot say "the cell is empty"
-(the evaluation treats empty and unreadable differently) or produce the
+`struck` (optionally `struck 2.98`) is `struck`; `x` with a note is `exclude`
+(the note is required); `withdraw` retracts only this reviewer's latest answer
+on the key. All eight actions are approved (G2 answer 2, amending the
+14 October review-app row, which listed value, `=`, `na` and struck): without
+`empty` and `dash` a reviewer cannot say what the cell holds (the evaluation
+treats empty and unreadable differently), and `exclude` produces the
 `excluded` status that seam 3 defines.
+
+`review/sessions_<initials>.csv` is appended once per server session with
+`session_id`, `reviewer`, `started`, `ended` (wall-clock, ISO 8601) and
+`answers`. The review-minutes endpoint uses wall-clock time (session start to
+end, and per record first shown to last answer), so that it compares with the
+coders' start and end cells; `elapsed_ms` is the per-answer figure.
 
 ### 3.5 Outputs (checkpoint 4), `outputs/`
 
@@ -208,7 +220,7 @@ observation builds the resolved value:
 | --- | --- | --- |
 | none | as read | `accepted_unflagged`, or `open_flag` when an error or check flag is open after the rerun |
 | `as_read` | as read | `confirmed` |
-| `typed` | the typed text through the same builder the readers use (number, ratio, category, date), read method `manual`; a text that does not parse is refused at entry, so none reaches here | `corrected` |
+| `typed` | the typed text through the same builder the readers use (number, ratio, category, date), read method `manual`; a text that does not parse is refused at entry, so none reaches here | `corrected`; `confirmed` when the typed value equals the parsed value as read |
 | `struck` | the typed text if given else as read; `resolved_struck = true` | `corrected` |
 | `dash`, `empty` | that state, no value | `corrected` |
 | `not_readable` | `unreadable`, no value | `unreadable` |
@@ -218,7 +230,8 @@ observation builds the resolved value:
 Then it reruns the rules: the resolved observations are wrapped as the
 `RecordInput` the checks already accept (resolved value in place of the parsed
 value; the conditions from the store), `check_records` runs with the same
-settings, and the bridge is called once for the whole run. From the rerun it
+settings over every record, including the cohort pass over the resolved
+values, and the bridge is called once for the whole run. From the rerun it
 fills `machine_confirmed_by` (the `confirm` flags on each key), `open_severity`,
 and `flags_resolved` with `change` computed by `flag_key` against the raw flags.
 The raw flags in `outputs/raw/` are never touched.
@@ -247,9 +260,15 @@ and `status` (`computed`, `not computed: <reason>`, or
 | `report_pattern` | `normal`, `obstructive`, `restrictive`, `mixed`, `nonspecific`, `other` | the interpretation-pattern phrase first; otherwise the three per-test findings combined as the flowchart does (restrictive spirometry with normal volumes is non-specific; restriction needs low volumes), a port of the described 0.3.16 behaviour; otherwise the whole comment text for "within normal limits" / "normal spirometry" |
 | `grade_fev1`, `grade_fvc` | the harmonised grade | session-quality line first, else the technical comments; a note when they differ |
 | `gli_<param>_<phase>_z`, `_lln`, `_pred`, `_pctpred` | recalculated reference values | new to the port: FEV1, FVC and FEV1/FVC pre and post, and TLCO, KCO and VA on the lab layout, from the resolved value, age, height, sex and ethnic group through the one rspiro bridge under `reference.equations`; point values (the bridge gains a point mode beside its interval mode). Blank with status `not computed: rspiro absent` without Rscript |
+| `pattern_gli` | as `pattern` | the same flowchart function on the recalculated `gli_*_z` values (`basis` is always `z`), so the QC report can count agreement with `pattern`; blank with status `not computed: rspiro absent` without Rscript |
 
-The pattern rests on the printed z and LLN, as the old script did, not on the
-recalculated values (departure 12.4 explains the choice). The rules
+The pattern, PRISm and severity rest on the printed, resolved z and LLN, as
+the old script did (G2 answer 5; departure 12.4), not on the recalculated
+values; `pattern_gli` is the comparison column. Without R, only the `gli_*`
+columns and `pattern_gli` are blank with status `not computed: rspiro absent`;
+`pattern`, `fev1_severity` and `prism` are computed from the printed values
+(this amends the 14 October "Missing tools" row and the derive flow of the
+runtime sequences, which left pattern, severity and PRISm blank). The rules
 `free_text.report_pattern_vs_computed`, `free_text.bdr_statement_vs_computed`
 and the three `derived.*` rules run after derive on the derived rows and are
 written to `flags_resolved` with layer `derived` or `free_text`.
@@ -298,7 +317,10 @@ follow the same rule. Trend values go to `values_long` only (one row per
 visit position), not to the wide table. Derived columns take their section 5
 names. Fixed first columns: `record_id`, `layout`, `pages`, `n_open_errors`,
 `n_open_checks`, `n_corrected`. The old script's column names are not used
-anywhere in the package (the private key map stays private).
+anywhere in the package (the private key map stays private). Parameters
+marked `site_identifier` (device serial, software version) are not in the
+wide table: they are written to `free_text_CONTAINS_DATA.csv` with the other
+non-dataset text and never reach `share/`.
 
 **Blanking rule.** A cell is blank when the value's status is `unreadable`,
 `excluded`, `reviewer_disagreement` or its `open_severity` is `error`, and when
@@ -309,7 +331,9 @@ written as fractions with three decimals.
 **Data dictionary.** Generated, one row per wide column: `name`, `parameter`,
 `column_role`, `display_position`, `kind`, `unit`, `stored_form` (fraction for
 ratios), `source` (`extracted` or `derived`), `description` (from the
-vocabulary and the derive table), `blank_when` (the rule above), `n_records`,
+vocabulary and the derive table; for trial columns it states that display
+position 1 is the Best column and the trials follow in printed order),
+`blank_when` (the rule above), `n_records`,
 `n_blank`. A second section lists every rule from the registry: `rule_id`,
 `layer`, `severities`, `rationale`, so the methods table of the paper comes
 from the same file.
@@ -329,9 +353,11 @@ charts, no script library. Sections, each a table or a chart with its counts:
 2. Flags by layer and severity, raw and after review; flags by rule with the
    correction yield among reviewed flags (answered, value changed, kept,
    unreadable), labelled as yield, never accuracy.
-3. Review effort: events per reviewer, minutes per reviewer (sum of
-   `elapsed_ms`), median seconds per answer, answers per record; open
-   disagreements.
+3. Review effort: events per reviewer; wall-clock minutes per reviewer from
+   the session files and per record from first shown to last answer; the sum
+   of `elapsed_ms` and the median seconds per answer; answers per record; open
+   disagreements. In `share/` reviewers are numbered (reviewer 1, 2), never
+   named by initials.
 4. Completeness per variable (per wide column): applicable, read, confident
    (no open error or check), machine-confirmed, corrected, unreadable; the
    "flagged when marked vs not" rates once the image rule sets `marked` on the
@@ -342,7 +368,8 @@ charts, no script library. Sections, each a table or a chart with its counts:
    browse chart of the old review tool, moved to the report.
 6. Derived: pattern, severity, PRISm and BDR counts by layout; computed pattern
    against the report's pattern (agree, near miss, disagree, not computed);
-   derived values resting on open checks.
+   `pattern` against `pattern_gli` (agree, disagree, not computed); derived
+   values resting on open checks.
 7. Reading: observations by read method and value state; `free_text_derived`
    counts by parameter; second-OCR agreement, disagreement and suggestions.
 8. Orphan events and other warnings.
@@ -377,9 +404,13 @@ carrying every open flag's rule id and message, the suggestion if any, the
 observation's raw text and parsed value, and the other cells of the same table
 row for context. Items answered by the current reviewer are hidden unless
 "show answered" is ticked; answers by other reviewers are shown on the item.
-Record-level flags appear as a note on the record's items. Order: errors
-before checks, then by record id, page and position on the page. `note` and
-`confirm` flags are never queued.
+Record-level flags appear as a note on the record's items. Order: core fields
+first, then errors before checks, then by record id, page and position on the
+page; `--core-only` queues core fields only. The core-field list is the
+declared study list (14 October "Core fields" row); the package holds no study
+list, so the queue reads it from the reader module's `CORE_FIELDS` (pairs of
+parameter and column role) and refuses `--core-only` with a message when the
+reader declares none. `note` and `confirm` flags are never queued.
 
 **Snippet.** `GET /snippet?record=..&key=..` renders the page at 300 dpi on
 demand (one render at a time, the last few pages kept in memory) and crops
@@ -398,15 +429,16 @@ items clear or appear at once. A second submit while one is in flight is ignored
 (client state and a server-side per-key lock). The reviewer's initials are asked
 once per server session (`--reviewer` skips the prompt).
 
-**Timing.** The page records when an item is shown and sends `elapsed_ms` with
-the answer; the server also logs session start and end (counts only) to the
-console.
+**Timing.** The page records when an item is shown and sends `shown_at` and
+`elapsed_ms` with the answer; the server appends the session's wall-clock
+start and end to `sessions_<initials>.csv` and prints counts only.
 
-**Rerun scope.** Record rules and, when a bridge is configured, the gli rules
-for that record (one Rscript call, about two seconds, shown as "checking");
-cohort rules wait for the next full run, as the sequences propose. Resolve's
-in-memory result is kept for the session; `spirotrace export` writes the
-authoritative `flags_resolved`.
+**Rerun scope** (G2 answer 7). Record rules on every answer; the gli rules
+for that record only when the answered key is a gli input (a measured value,
+z, LLN, %pred, predicted, age, height, sex or ethnic group) and a bridge is
+configured (one Rscript call, about two seconds, shown as "checking"); cohort
+rules at export. Resolve's in-memory result is kept for the session;
+`spirotrace export` writes the authoritative `flags_resolved`.
 
 Browse, record view, history and export stay deferred to the v1.0 app.
 
@@ -429,7 +461,7 @@ checkout, the short commit hash, so a development run is distinguishable.
 spirotrace init <folder>
 spirotrace run    [--project DIR] [--profile NAME]
 spirotrace export [--project DIR] [--profile NAME]
-spirotrace review [--project DIR] [--port N] [--no-browser] [--reviewer XX]
+spirotrace review [--project DIR] [--port N] [--no-browser] [--reviewer XX] [--core-only]
 ```
 
 `--project` defaults to the current folder. `template` and `eval` stay listed
@@ -452,17 +484,19 @@ takes the reader from a new settings key, `templates.reader`, a
 private `read_file(path, settings, used_ids)`; the folders in `templates.dirs`
 are put on `sys.path` first. The key is not hashed (the reader's template ids
 and versions are stamped instead), so `SCHEMA_VERSION` becomes 2 and the
-default-hash test changes with it. An empty value means the packaged reader,
-which until then refuses with a message naming the key. This is an ask-first
-config change (section 13, question 1); the alternative is a private driver
-script that calls `pipeline.run` with the reader, leaving `spirotrace run`
+pinned default-hash test changes with it. An empty value means the packaged
+reader, which until then refuses with a message naming the key. Approved as
+the one config change of phase 2 (G2 answer 1); the alternative was a private
+driver script calling `pipeline.run`, which would have left `spirotrace run`
 unusable for the study.
 
 ## 12. Departures from the rewrite plan and the runtime sequences
 
 1. **Page images are not cached** (plan: "words and page images per file
-   hash"). Rendering is cheap and the files are large on a network drive; only
-   Tesseract readings are cached. The staleness table loses the images row.
+   hash"; the 14 October second-OCR row said "cropping the cached page
+   image"). Rendering is cheap and the files are large on a network drive;
+   only Tesseract readings are cached. The staleness table loses the images
+   row.
 2. **The extraction store lives in `outputs/raw/`**, not in a folder of its own,
    so `.gitignore` stays as it is.
 3. **A `store` module and a `pipeline` module** are added to the package layout
@@ -479,11 +513,12 @@ unusable for the study.
    of seam 3, because a flagged, unanswered value is neither accepted nor
    corrected, and the 14 October decision names the disagreement status.
 6. **Four keyboard answers beyond value, `=`, `na`, struck** (`empty`, `-`,
-   `x`, `withdraw`; section 3.4).
+   `x`, `withdraw`; section 3.4; amends the 14 October review-app row).
 7. **Conditions are stored** (not in the plan's data model), because the rules
    need them at the rerun and the QC report counts them.
-8. **The rerun in the queue includes the gli rules** for the answered record
-   (the sequences proposed record rules only); cohort rules still wait.
+8. **The rerun in the queue includes the gli rules** when the answered key is
+   a gli input (the sequences proposed record rules only); cohort rules run at
+   export, over the resolved values.
 9. **No pytesseract**: Tesseract runs as a subprocess, reading TSV output. No
    new dependency; `numpy` and `PyYAML` are still not needed.
 10. **`templates.reader` settings key** (section 11), a config schema change.
@@ -492,21 +527,40 @@ unusable for the study.
 12. **The corrections import is not built** (decided 14 October); the event
     columns `source` and `source_fingerprint` exist so that nothing in the
     format blocks it later.
+13. **Without R, pattern, severity and PRISm are still computed** from the
+    printed values; only the `gli_*` columns and `pattern_gli` are blank
+    (amends the 14 October "Missing tools" row and the derive flow of the
+    runtime sequences).
 
-## 13. Decisions needed (G2)
+## 13. Decisions taken at G2 (28 October 2026)
 
-1. The reader: the `templates.reader` settings key (recommended; one command,
-   stamped), or a private driver script calling `pipeline.run`.
-2. The extra keyboard answers `empty`, `-` (printed dash), `x` (exclude, note
-   required) and `withdraw`: keep all four (recommended), or only the decided
-   four with `na` covering empty cells.
-3. The extraction store under `outputs/raw/` (recommended) or a new top-level
-   folder, which needs a `.gitignore` line.
-4. Page images not cached (recommended) or cached at 300 dpi as the plan says.
-5. Pattern and severity from the printed z and LLN (recommended, the port) or
-   from the recalculated GLI values.
-6. The QC report named `qc_report_CONTAINS_DATA.html` because its
-   distributions show values; the shareable counts go to `share/qc_summary.txt`.
-7. The queue rerun calling rspiro per answer (recommended, about two seconds)
-   or record rules only, with gli flags refreshed at export.
-8. Wide column naming `<parameter>_<role>[_<position>]` (recommended).
+1. The reader comes from the `templates.reader` settings key:
+   `package.module:function`, `templates.dirs` on `sys.path` first, not
+   hashed, template ids and versions stamped; `SCHEMA_VERSION` 2 with the
+   pinned default-hash test updated; empty means the packaged reader, which
+   refuses with a message naming the key.
+2. All eight event actions (`typed`, `as_read`, `not_readable`, `empty`,
+   `dash`, `struck`, `exclude`, `withdraw`); `x` requires a note; `withdraw`
+   retracts only this reviewer's latest answer on the key.
+3. The extraction store is `outputs/raw/`.
+4. No page-image cache.
+5. `pattern`, `fev1_severity` and `prism` from the printed, resolved z and
+   LLN (z when usable, else LLN, `basis` column); recalculated GLI values as
+   `gli_*` columns; `pattern_gli` from the recalculated z with the same
+   flowchart function. Without R only `gli_*` and `pattern_gli` are blank.
+6. `qc_report_CONTAINS_DATA.html`; counts to `share/qc_summary.txt`;
+   reviewers numbered in `share/`, never initials.
+7. Queue rerun: record rules on every answer; gli rules only when the
+   answered key is a gli input; cohort rules at export.
+8. Wide columns `<parameter>_<role>[_<position>]`; the data dictionary states
+   that trial position 1 is Best.
+
+Conditions attached to the approval, carried into the PR briefs: wall-clock
+timing beside `elapsed_ms` (section 3.4, reported in section 8.3);
+`--core-only` and a core-first sort from the declared core-field list
+(section 9); site identifiers in the free-text file, never in the wide table or
+`share/` (section 7); `typed` equal to the value as read resolves to
+`confirmed` (section 4); the export-time rerun includes the cohort pass
+(section 4); PR 1 adds a derive equivalence category against the old script
+on the five synthetic files (section 1); the event-file lock is
+`msvcrt.locking` on Windows and `fcntl` elsewhere (section 3.4).
