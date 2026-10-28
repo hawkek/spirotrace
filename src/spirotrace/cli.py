@@ -26,9 +26,9 @@ from .pipeline import (
     pdf_files,
     run_project,
 )
+from .privacy import SHARE_DIR
 from .rspiro import find_rscript
 
-SHARE_DIR = "share"
 PROJECT_FOLDERS: tuple[str, ...] = (
     REPORTS_DIR,
     CACHE_DIR,

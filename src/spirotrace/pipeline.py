@@ -23,6 +23,7 @@ from typing import Any, Protocol
 from spirotrace.checks import CheckRun, Flag, check_records
 from spirotrace.config import Settings
 from spirotrace.derive import DeriveRun, derive_records
+from spirotrace.export import ExportFiles, export_dataset
 from spirotrace.ingest import TesseractTool, file_hash_of, tesseract_tool
 from spirotrace.ingest.second_ocr import (
     SecondOcrCache,
@@ -37,6 +38,7 @@ from spirotrace.layouts import (
 )
 from spirotrace.layouts import conditions as cond
 from spirotrace.model import Page, ReadMethod, Record, TextSource
+from spirotrace.privacy import SHARE_DIR
 from spirotrace.resolve import Resolved, merge_events, resolve_records
 from spirotrace.rspiro import RspiroBridge
 from spirotrace.store import (
@@ -48,6 +50,7 @@ from spirotrace.store import (
     raw_stamp_fields,
     read_events,
     read_raw,
+    read_sessions,
     read_stamp,
     stamp_matches,
     write_raw,
@@ -304,6 +307,7 @@ class ExportResult:
     derived: DeriveRun
     outputs_dir: Path
     notices: list[str] = field(default_factory=list)
+    files: ExportFiles | None = None
 
     def summary_lines(self) -> list[str]:
         statuses = Counter(v.status for v in self.resolved.values.values())
@@ -327,6 +331,11 @@ class ExportResult:
             out.append("rspiro: absent (gli_* and pattern_gli not computed)")
             if self.derived.not_run_reason:
                 out.append(f"  {self.derived.not_run_reason}")
+        if self.files is not None:
+            out.append(
+                f"files written: {len(self.files.outputs)} in outputs, "
+                f"{len(self.files.shared)} in share (guard masked {self.files.masked_cells} tokens)"
+            )
         out.extend(self.notices)
         return out
 
@@ -358,7 +367,19 @@ def export_project(
     derived = derive_records(resolved, settings, bridge=bridge)
     fields = outputs_stamp_fields(store.stamp, events, derived.rspiro_version)
     write_outputs(out_dir, resolved, derived, fields, notices.append)
-    result = ExportResult(resolved, derived, out_dir, notices)
+    files = export_dataset(
+        out_dir,
+        project_dir / SHARE_DIR,
+        store,
+        resolved,
+        derived,
+        events,
+        read_sessions(project_dir / REVIEW_DIR, notices.append),
+        rspiro_version=derived.rspiro_version,
+        tesseract_version=str(store.stamp.get("tesseract_version", "")),
+        notice=notices.append,
+    )
+    result = ExportResult(resolved, derived, out_dir, notices, files)
     for line in result.summary_lines():
         say(line)
     return result
