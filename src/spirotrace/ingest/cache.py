@@ -17,6 +17,7 @@ from typing import Any
 from spirotrace.model import TextSource
 
 from .pdf import IngestedFile, IngestedPage, file_hash_of, load_pdf
+from .tesseract import TesseractLike
 from .words import Word, group_lines
 
 WORDS_DIR = "words"
@@ -79,7 +80,7 @@ def _write(cache_dir: Path, ingested: IngestedFile, stamp: dict[str, Any]) -> No
                     "y0": repr(w.top),
                     "y1": repr(w.bottom),
                     "source": p.text_source.value,
-                    "confidence": "",
+                    "confidence": "" if w.conf is None else repr(w.conf),
                 }
             )
     write_rows(words_path, WORD_COLUMNS, rows)
@@ -121,6 +122,7 @@ def _read(
                 float(r["x1"]),
                 float(r["y0"]),
                 float(r["y1"]),
+                float(r["confidence"]) if r["confidence"] else None,
             )
         )
     pages = []
@@ -149,13 +151,20 @@ def load_pdf_cached(
     *,
     ocr_missing: bool = False,
     code_version: str = "",
-    tesseract_version: str = "",
+    tesseract: TesseractLike | None = None,
 ) -> IngestedFile:
-    """:func:`load_pdf` through the words cache (no cache when ``cache_dir`` is None)."""
+    """:func:`load_pdf` through the words cache (no cache when ``cache_dir`` is None).
+
+    The stamp records the Tesseract version only when the words can depend on
+    it (``ocr_missing``), so a Tesseract upgrade leaves text-layer words valid.
+    """
     if cache_dir is None:
-        return load_pdf(path, orient_words, normalise, ocr_missing=ocr_missing)
+        return load_pdf(
+            path, orient_words, normalise, ocr_missing=ocr_missing, tesseract=tesseract
+        )
     data = Path(path).read_bytes()
     file_hash = file_hash_of(data)
+    tesseract_version = tesseract.version if ocr_missing and tesseract else ""
     stamp = cache_stamp_fields(file_hash, code_version, tesseract_version, ocr_missing)
     _, _, stamp_path = _paths(cache_dir, file_hash)
     if stamp_path.is_file():
@@ -167,6 +176,8 @@ def load_pdf_cached(
             cached = _read(cache_dir, Path(path), data, file_hash)
             if cached is not None:
                 return cached
-    ingested = load_pdf(path, orient_words, normalise, ocr_missing=ocr_missing)
+    ingested = load_pdf(
+        path, orient_words, normalise, ocr_missing=ocr_missing, tesseract=tesseract
+    )
     _write(cache_dir, ingested, stamp)
     return ingested

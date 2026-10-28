@@ -23,6 +23,7 @@ from . import (  # noqa: F401 - importing registers the rules
     rules_gli,
     rules_range,
     rules_reading,
+    rules_second_ocr,
 )
 from .context import RecordContext, RecordInput
 from .flags import Flag

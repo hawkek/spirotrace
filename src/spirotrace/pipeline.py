@@ -13,18 +13,22 @@ and writes checkpoint 4. Console output is counts only.
 from __future__ import annotations
 
 import importlib
-import shutil
 import sys
 from collections import Counter
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Protocol
 
 from spirotrace.checks import CheckRun, Flag, check_records
 from spirotrace.config import Settings
 from spirotrace.derive import DeriveRun, derive_records
-from spirotrace.ingest import file_hash_of
+from spirotrace.ingest import TesseractTool, file_hash_of, tesseract_tool
+from spirotrace.ingest.second_ocr import (
+    SecondOcrCache,
+    SecondOcrStats,
+    second_read_records,
+)
 from spirotrace.layouts import (
     ReadingCondition,
     base_record_id,
@@ -32,7 +36,7 @@ from spirotrace.layouts import (
     unique_record_id,
 )
 from spirotrace.layouts import conditions as cond
-from spirotrace.model import Page, Record
+from spirotrace.model import Page, ReadMethod, Record, TextSource
 from spirotrace.resolve import Resolved, merge_events, resolve_records
 from spirotrace.rspiro import RspiroBridge
 from spirotrace.store import (
@@ -123,28 +127,18 @@ def load_reader(settings: Settings, project_dir: Path) -> Reader:
     return fn
 
 
-def find_tesseract(configured: str) -> str | None:
-    if configured:
-        return configured if Path(configured).is_file() else None
-    found = shutil.which("tesseract")
-    if found:
-        return found
-    default = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
-    return str(default) if default.is_file() else None
-
-
-def check_tools(settings: Settings) -> None:
-    """Refuse a run that asks for a stage not available (plan: stop before ingest)."""
-    if settings.ocr.second_ocr:
+def check_tools(settings: Settings) -> TesseractTool | None:
+    """Stop before ingest when a setting needs Tesseract and there is none (decided
+    14 Oct 2026); returns the probed tool when one is needed and found."""
+    if not (settings.ocr.second_ocr or settings.ocr.missing_pages):
+        return None
+    tool = tesseract_tool(settings.tools.tesseract)
+    if tool is None:
         raise PipelineError(
-            "ocr.second_ocr = true is not supported until the second reading is built "
-            "(A4); set it to false to run"
+            "ocr.second_ocr or ocr.missing_pages is true but Tesseract was not found: set "
+            "tools.tesseract to its full path, or turn the setting off"
         )
-    if settings.ocr.missing_pages:
-        raise PipelineError(
-            "ocr.missing_pages = true is not supported until the second reading is built "
-            "(A4); set it to false to run"
-        )
+    return tool
 
 
 def pdf_files(folder: Path) -> list[Path]:
@@ -185,6 +179,7 @@ class RunResult:
     raw_dir: Path | None = None
     rebuilt: bool = True
     notices: list[str] = field(default_factory=list)
+    second_ocr: SecondOcrStats | None = None
 
     def summary_lines(self) -> list[str]:
         """Counts only: never a record id, a value or a file name."""
@@ -206,6 +201,12 @@ class RunResult:
             )
         else:
             out.append(f"gli subjects sent to rspiro: {self.check.gli_subjects}")
+        if self.second_ocr is not None:
+            s = self.second_ocr
+            out.append(
+                f"second OCR: cells {s.cells} (from cache {s.cached}, read {s.read}), "
+                f"records failed {s.failed_records}"
+            )
         out.extend(self.notices)
         return out
 
@@ -221,8 +222,9 @@ def run_project(
 ) -> RunResult:
     """Stages 1 to 5 over every PDF in ``reports/``; writes ``<outputs>/raw/``."""
     say = console or (lambda _m: None)
-    check_tools(settings)
+    tool = check_tools(settings)
     reader = reader or load_reader(settings, project_dir)
+    ocr_stats = SecondOcrStats() if settings.ocr.second_ocr else None
     code = code_version()
     cache_dir = project_dir / CACHE_DIR
     used_ids: set[str] = set()
@@ -240,10 +242,22 @@ def run_project(
             continue
         store.file_names[read.file_hash] = path.name
         store.pages.extend(read.pages)
-        for r in read.records:
-            store.records.append(
-                ReadRecord(r.record, dict(r.observations), list(r.conditions))
+        own = [
+            ReadRecord(r.record, dict(r.observations), list(r.conditions))
+            for r in read.records
+        ]
+        mark_ocr_pages(own, read.pages)
+        if ocr_stats is not None and tool is not None:
+            ocr_stats.add(
+                second_read_records(
+                    own,
+                    read.pages,
+                    path.read_bytes(),
+                    tool,
+                    SecondOcrCache(cache_dir, read.file_hash),
+                )
             )
+        store.records.extend(own)
     if bridge is None:
         bridge = RspiroBridge.from_settings_path(settings.tools.rscript)
     check = check_records(store.records, settings, bridge=bridge)
@@ -259,6 +273,7 @@ def run_project(
         settings.templates.reader,
         templates,
         store.file_names,
+        tesseract_version=tool.version if tool is not None else "",
         second_ocr=settings.ocr.second_ocr,
         missing_pages=settings.ocr.missing_pages,
     )
@@ -274,6 +289,7 @@ def run_project(
         raw_dir,
         rebuilt=not stamp_matches(previous, stamp),
         notices=notices,
+        second_ocr=ocr_stats,
     )
     if previous is not None and result.rebuilt:
         notices.append("raw store rebuilt: the previous stamp differed")
@@ -346,6 +362,23 @@ def export_project(
     for line in result.summary_lines():
         say(line)
     return result
+
+
+def mark_ocr_pages(records: Sequence[ReadRecord], pages: Sequence[Page]) -> int:
+    """Observations read from a page whose words came from Tesseract (missing text
+    layer) get read method ``ocr``; the reader itself cannot tell. Returns the count.
+    The per-cell confidence is not carried (the readers keep no words per cell).
+    """
+    ocr_pages = {p.page for p in pages if p.text_source is TextSource.OCR}
+    if not ocr_pages:
+        return 0
+    n = 0
+    for rec in records:
+        for key, obs in list(rec.observations.items()):
+            if key.page in ocr_pages and obs.read_method is ReadMethod.TEXT_LAYER:
+                rec.observations[key] = replace(obs, read_method=ReadMethod.OCR)
+                n += 1
+    return n
 
 
 def flags_by_rule(flags: Sequence[Flag]) -> dict[str, int]:

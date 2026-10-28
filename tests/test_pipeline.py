@@ -12,7 +12,7 @@ import pytest
 from checks_helpers import P, R, cells
 from pdf_helpers import make_pdf
 
-from spirotrace import cli
+from spirotrace import cli, pipeline
 from spirotrace.config import load_settings
 from spirotrace.ingest import file_hash_of
 from spirotrace.model import Page, Record, TextSource
@@ -144,11 +144,48 @@ def test_reader_from_templates_dirs(tmp_path: Path) -> None:
     assert fn.__name__ == "read"
 
 
-def test_second_ocr_setting_is_refused_until_a4(tmp_path: Path) -> None:
+def test_second_ocr_without_tesseract_stops_before_ingest(
+    tmp_path: Path, monkeypatch
+) -> None:
     folder = project(tmp_path)
     (folder / "spiro.toml").write_text("[ocr]\nsecond_ocr = true\n", encoding="utf-8")
-    with pytest.raises(PipelineError, match="second_ocr"):
+    monkeypatch.setattr(pipeline, "tesseract_tool", lambda configured: None)
+    with pytest.raises(PipelineError, match="Tesseract was not found"):
         run_project(folder, load_settings(folder), fake_reader)
+    assert not (folder / "outputs" / "raw").exists()
+
+
+class _FakeTool:
+    version = "fake-1"
+
+    def page_words(self, image):
+        return []
+
+    def cell(self, image):
+        return "3.05", 95.0
+
+
+def test_second_ocr_run_fills_second_readings_and_the_cache(
+    tmp_path: Path, monkeypatch
+) -> None:
+    folder = project(tmp_path)
+    (folder / "spiro.toml").write_text("[ocr]\nsecond_ocr = true\n", encoding="utf-8")
+    monkeypatch.setattr(pipeline, "tesseract_tool", lambda configured: _FakeTool())
+    result = run_project(folder, load_settings(folder), fake_reader)
+    assert result.second_ocr is not None and result.second_ocr.cells > 0
+    back = read_raw(folder / "outputs" / "raw")
+    fev1 = [
+        o
+        for r in back.records
+        for k, o in r.observations.items()
+        if k.parameter is P.FEV1 and k.column_role is R.PRE
+    ]
+    assert fev1 and all(o.second_reading == "3.05" for o in fev1)
+    assert any(f.rule_id == "ocr.second_reading_agrees" for f in back.flags)
+    assert back.stamp["tesseract_version"] == "fake-1" and back.stamp["second_ocr"]
+    assert list((folder / "cache" / "second_ocr").glob("*.csv"))
+    text = "\n".join(result.summary_lines())
+    assert "second OCR: cells" in text
 
 
 # --- run -------------------------------------------------------------------------------
