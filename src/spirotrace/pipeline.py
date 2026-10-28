@@ -305,8 +305,12 @@ class ExportResult:
         ]
         if self.derived.rspiro_version:
             out.append("rspiro: available")
+        elif self.derived.gli_inputs == 0:
+            out.append("rspiro: not run (no record had usable GLI inputs)")
         else:
             out.append("rspiro: absent (gli_* and pattern_gli not computed)")
+            if self.derived.not_run_reason:
+                out.append(f"  {self.derived.not_run_reason}")
         out.extend(self.notices)
         return out
 

@@ -357,6 +357,33 @@ def test_without_rspiro_only_gli_and_pattern_gli_are_blank() -> None:
     assert run_.not_computed >= 13
 
 
+def test_gli_rows_say_why_without_demographics() -> None:
+    run_, _ = derive(NORMAL, gli_results={})  # R answered, but this record sent nothing
+    d = by_name(run_)
+    assert d["gli_FEV1_pre_z"].value == ""
+    assert d["gli_FEV1_pre_z"].status.startswith("not computed: missing or flagged")
+    assert d["pattern_gli"].status == d["gli_FEV1_pre_z"].status
+    assert run_.gli_inputs == 0
+
+
+def test_bridge_is_not_called_without_inputs() -> None:
+    class Bridge:
+        def compute(self, subjects):
+            raise AssertionError("must not be called with no subjects")
+
+        def version(self):
+            return "R"
+
+    run_, _ = derive(NORMAL)
+    assert run_.gli_inputs == 0
+    from spirotrace.config import default_settings as ds
+    from spirotrace.derive import derive_records as dr
+
+    _, res = derive(NORMAL)
+    out = dr(res, ds(), bridge=Bridge())  # type: ignore[arg-type]
+    assert out.rspiro_version == "" and out.gli_inputs == 0
+
+
 def test_derived_row_columns() -> None:
     run_, _ = derive(NORMAL)
     row = run_.rows[0].to_row()

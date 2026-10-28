@@ -249,7 +249,9 @@ def test_export_resolves_against_events_and_derives(tmp_path: Path) -> None:
         result.derived.of_record("12")["pattern"].value == ""
     )  # its FVC z is still an error
     text = "\n".join(lines)
-    assert "events: 1 (0 orphan)" in text and "rspiro: absent" in text
+    assert "events: 1 (0 orphan)" in text
+    # no record has demographics, so nothing is sent to R and R is not claimed
+    assert "rspiro: not run" in text and result.derived.gli_inputs == 0
     assert "corrected" in text
 
 

@@ -105,6 +105,8 @@ class DeriveRun:
     rspiro_version: str = ""
     """Empty when no bridge ran (gli_* and pattern_gli are then not computed)."""
     not_run_reason: str = ""
+    gli_inputs: int = 0
+    """Subject-phases sent to the bridge; 0 means no record had usable demographics."""
 
     @property
     def not_computed(self) -> int:
@@ -477,14 +479,15 @@ def _bdr_rows(vals: _Values) -> list[DerivedRow]:
 # --- the GLI recalculation (point values) --------------------------------------
 
 
-def _gli_subjects(vals: _Values, ctx: RecordContext) -> list[GliSubject]:
-    demo, _why = demographics(ctx)
+def _gli_subjects(vals: _Values, ctx: RecordContext) -> tuple[list[GliSubject], str]:
+    """The record's point subjects, or none with the reason (the demographics)."""
+    demo, why = demographics(ctx)
     if demo is None:
-        return []
+        return [], why
     age, ht = vals.number(P.AGE, R.MEASURED), vals.number(P.HEIGHT, R.MEASURED)
     vals.take()
     if age is None or ht is None:
-        return []
+        return [], "missing or flagged: age or height"
     out: list[GliSubject] = []
     rid = vals.record_id
     for phase, vrole, _l, _p, _z, _t in SPIRO_PHASES:
@@ -520,15 +523,21 @@ def _gli_subjects(vals: _Values, ctx: RecordContext) -> list[GliSubject]:
                 si=DLCO_SI_UNITS,
             )
         )
-    return out
+    return out, ""
 
 
 def _gli_rows(
-    vals: _Values, results: GliResults | None, available: bool
+    vals: _Values, results: GliResults | None, available: bool, why: str
 ) -> list[DerivedRow]:
+    """``why`` is the record's reason for sending nothing to the bridge, else ``""``."""
     rows: list[DerivedRow] = []
     rid = vals.record_id
-    status = "computed" if available else NOT_COMPUTED_RSPIRO
+    if why:
+        status = f"not computed: {why}"
+    elif not available:
+        status = NOT_COMPUTED_RSPIRO
+    else:
+        status = "not computed: no recalculation returned"
     phases = [(phase, vrole) for phase, vrole, *_ in SPIRO_PHASES]
     slots = [
         (phase, vrole, param, name)
@@ -587,8 +596,8 @@ def _gli_rows(
         if z is not None:
             zs[f"{param.value}|{phase}"] = z
     # the same flowchart on the recalculated pre-bronchodilator z
-    if not available:
-        rows.append(_row(vals, "pattern_gli", None, "", [], NOT_COMPUTED_RSPIRO))
+    if why or not available:
+        rows.append(_row(vals, "pattern_gli", None, "", [], status))
         return rows
     rz, fz = zs.get("FEV1_FVC|pre"), zs.get("FVC|pre")
     obs = None if rz is None else rz < T("z_lln")
@@ -628,6 +637,7 @@ def derive_records(
     contexts: dict[str, RecordContext] = {}
     values: dict[str, _Values] = {}
     subjects: list[GliSubject] = []
+    reasons: dict[str, str] = {}
     for rec in resolved.records:
         usable_only = ReadRecord(
             rec.record,
@@ -638,10 +648,15 @@ def derive_records(
         contexts[rec.record_id] = ctx
         vals = _Values(rec.record_id, resolved.of_record(rec.record_id))
         values[rec.record_id] = vals
-        subjects.extend(_gli_subjects(vals, ctx))
+        own, why = _gli_subjects(vals, ctx)
+        subjects.extend(own)
+        reasons[rec.record_id] = why
+    run.gli_inputs = len(subjects)
     results = gli_results
     available = results is not None
-    if results is None and bridge is not None:
+    # R is only known to be there once it has answered: an empty input is never
+    # sent, so it cannot stand in for a successful run
+    if results is None and bridge is not None and subjects:
         try:
             results = bridge.compute(subjects)
             available = True
@@ -658,7 +673,7 @@ def derive_records(
     for rec in resolved.records:
         vals, ctx = values[rec.record_id], contexts[rec.record_id]
         rows = _derive_record(vals, has_tlc=vals.has_parameter(P.TLC))
-        rows.extend(_gli_rows(vals, results, available))
+        rows.extend(_gli_rows(vals, results, available, reasons[rec.record_id]))
         run.rows.extend(rows)
         by_name = {r.name: r for r in rows}
         for r in derived_rules:

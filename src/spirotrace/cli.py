@@ -143,7 +143,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 return 1 if result.failed_files or result.check.rules_not_run else 0
             export = export_project(a.project, settings, profile=a.profile, console=say)
-            return 0 if export.derived.rspiro_version else 1
+            skipped = export.derived.gli_inputs and not export.derived.rspiro_version
+            return 1 if skipped else 0
         except PipelineError as exc:
             say(str(exc))
             return 2
