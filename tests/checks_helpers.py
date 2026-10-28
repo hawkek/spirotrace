@@ -35,6 +35,10 @@ class FakeRecord:
     observations: dict[ObservationKey, Observation] = field(default_factory=dict)
     conditions: list[ReadingCondition] = field(default_factory=list)
 
+    @property
+    def record_id(self) -> str:
+        return self.record.record_id
+
     def put(
         self,
         parameter: Parameter,

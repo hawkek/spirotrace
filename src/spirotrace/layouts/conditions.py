@@ -96,3 +96,7 @@ COLUMNS_FROM_STANDARD_LAYOUT = "columns_from_standard_layout"
 FREE_TEXT_DERIVED = "free_text_derived"
 DUPLICATE_KEY_DROPPED = "duplicate_key_dropped"
 INTERPRETATION_FINDING_NOT_RECOGNISED = "interpretation_finding_not_recognised"
+# Second reading (A4): the confidence of a cell's second reading, and a Tesseract
+# failure that ended a record's readings
+SECOND_READING_CONFIDENCE = "second_reading_confidence"
+SECOND_READING_FAILED = "second_reading_failed"
