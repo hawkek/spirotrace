@@ -15,6 +15,7 @@ from pathlib import Path
 
 from . import __version__
 from .config import SCHEMA, SETTINGS_FILE, SettingsError, load_settings
+from .ingest import find_tesseract
 from .pipeline import (
     CACHE_DIR,
     OUTPUTS_DIR,
@@ -22,7 +23,6 @@ from .pipeline import (
     REVIEW_DIR,
     PipelineError,
     export_project,
-    find_tesseract,
     pdf_files,
     run_project,
 )
