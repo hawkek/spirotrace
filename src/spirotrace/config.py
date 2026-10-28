@@ -27,8 +27,10 @@ from dataclasses import fields as dataclass_fields
 from pathlib import Path
 from typing import Any, Literal
 
-SCHEMA_VERSION = 1
-"""Bumped whenever a schema key is added, removed or renamed. Part of the hash."""
+SCHEMA_VERSION = 2
+"""Bumped whenever a schema key is added, removed or renamed. Part of the hash.
+
+2 (28 Oct 2026, G2): ``templates.reader`` added."""
 
 SETTINGS_FILE = "spiro.toml"
 PROFILES_DIR = "profiles"
@@ -110,6 +112,14 @@ SCHEMA: tuple[SchemaField, ...] = (
         (),
         "extra template folders, relative to the project folder; "
         "the packaged neutral templates are always included",
+        hashed=False,
+    ),
+    SchemaField(
+        "templates.reader",
+        "str",
+        "",
+        "layout reader as package.module:function (folders in templates.dirs are put "
+        "on sys.path first); empty means the packaged reader",
         hashed=False,
     ),
     SchemaField(
@@ -203,6 +213,7 @@ SWITCHES: tuple[str, ...] = tuple(f.key for f in SCHEMA if f.switch)
 class TemplateSettings:
     use: tuple[str, ...]
     dirs: tuple[str, ...]
+    reader: str
 
 
 @dataclass(frozen=True, slots=True)
