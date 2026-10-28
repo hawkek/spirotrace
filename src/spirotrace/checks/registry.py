@@ -46,14 +46,15 @@ def rule(
     """Register ``fn`` as the rule ``id``.
 
     ``scope`` is ``record`` (runs once per record), ``cohort`` (runs once over
-    all records) or ``gli`` (runs per record with the recalculated ranges).
+    all records), ``gli`` (runs per record with the recalculated ranges) or
+    ``derived`` (runs per record after derive, on its derived rows).
     """
     sevs = (severity,) if isinstance(severity, Severity) else tuple(severity)
     if layer not in LAYERS:
         raise ValueError(f"unknown layer {layer!r} for rule {id}")
     if not id.startswith(layer + "."):
         raise ValueError(f"rule id {id!r} must start with its layer {layer!r}")
-    if scope not in ("record", "cohort", "gli"):
+    if scope not in ("record", "cohort", "gli", "derived"):
         raise ValueError(f"unknown scope {scope!r} for rule {id}")
     if not why.strip():
         raise ValueError(f"rule {id} needs its one-sentence rationale")

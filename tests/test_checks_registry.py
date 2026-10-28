@@ -28,7 +28,7 @@ def test_every_rule_declares_id_layer_severity_and_rationale() -> None:
         assert r.id == rid and r.layer in LAYERS and rid.startswith(r.layer + ".")
         assert r.severities and all(isinstance(s, Severity) for s in r.severities)
         assert len(r.why.split()) >= 5, rid
-        assert r.scope in ("record", "cohort", "gli")
+        assert r.scope in ("record", "cohort", "gli", "derived")
 
 
 def test_curated_list_rules_are_registered() -> None:
