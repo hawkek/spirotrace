@@ -35,6 +35,12 @@ ETHNIC_PATTERNS: tuple[tuple[str, int], ...] = (
     (r"south\s*-?\s*east|\bse\b|s\.?e\.? ?asian", 4),
     (r"other|mixed", 5),
 )
+OTHER_EQUATIONS = re.compile(
+    r"\bgli\b|\b(?:19|20)\d\d\b|nhanes|eccs|ecsc|knudson|hankinson|\bjrs\b|global",
+    re.IGNORECASE,
+)
+"""A reference text that names an equation set or a year: without "2012" it is
+not GLI 2012 and the record is skipped."""
 SPIRO_PHASES: tuple[
     tuple[str, ColumnRole, ColumnRole, ColumnRole, ColumnRole, ColumnRole], ...
 ] = (
@@ -76,7 +82,9 @@ def demographics(ctx: RecordContext) -> tuple[Demographics | None, str]:
         ctx.usable_unflagged(P.HEIGHT, R.MEASURED),
     )
     ref = ctx.text(P.REFERENCE_SPIROMETRY, R.MEASURED) or ""
-    if ref and "2012" not in ref:
+    if OTHER_EQUATIONS.search(ref) and "2012" not in ref:
+        # a layout whose label carries the equation stores only the group (e.g.
+        # "Caucasian"); only a text naming other equations or another year skips
         return None, "reference equations are not GLI 2012"
     eth = next(
         (code for pat, code in ETHNIC_PATTERNS if re.search(pat, ref, re.IGNORECASE)),

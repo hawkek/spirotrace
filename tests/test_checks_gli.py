@@ -67,6 +67,19 @@ def test_inputs_skip_without_demographics_or_another_reference() -> None:
     rec3 = record()
     rec3.put(P.REFERENCE_SPIROMETRY, R.MEASURED, "ECCS 1993")
     assert "not GLI 2012" in gli_inputs(context(rec3)).skipped
+    # a layout whose label carries the equation stores only the group: not a skip
+    rec4 = subject()
+    rec4.put(P.REFERENCE_SPIROMETRY, R.MEASURED, "Caucasian", page=2)
+    assert gli_inputs(context(rec4)).skipped == ""
+    for other in ("GLI Global", "NHANES III", "GLI 2022", "Quanjer 1993"):
+        rec5 = subject()
+        rec5.put(P.REFERENCE_SPIROMETRY, R.MEASURED, other, page=2)
+        rec5.observations = {
+            k: o
+            for k, o in rec5.observations.items()
+            if not (k.parameter is P.REFERENCE_SPIROMETRY and k.page == 1)
+        }
+        assert "not GLI 2012" in gli_inputs(context(rec5)).skipped, other
 
 
 def test_z_agrees_disagrees_rounding_and_trial_matches() -> None:

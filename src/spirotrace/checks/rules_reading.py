@@ -172,10 +172,6 @@ SIMPLE: dict[str, tuple[str, str]] = {
         "layout.post_values_without_quality_line",
         "post trial values present but no 'Session Quality Post' line",
     ),
-    cond.POST_ROW_CLIPPED: (
-        "layout.post_fev1_row_clipped",
-        "post FEV1 trial row is printed half-hidden under the marker line",
-    ),
     cond.COLUMNS_OFF_STANDARD_LAYOUT: (
         "layout.columns_off_standard_layout",
         (
@@ -488,12 +484,6 @@ for _rid, _layer, _sev, _why in (
         "Post trial values without their session-quality line",
     ),
     (
-        "layout.post_fev1_row_clipped",
-        "layout",
-        C,
-        "The post FEV1 trial row prints half under the filter line",
-    ),
-    (
         "layout.columns_off_standard_layout",
         "layout",
         C,
@@ -732,3 +722,25 @@ def decimal_places(ctx: RecordContext) -> Iterator[Flag]:
                     f"expected {Z_DECIMALS} decimal places for z-score, got {dec}",
                     [o],
                 )
+
+
+@rule(
+    "layout.post_fev1_row_clipped",
+    "layout",
+    C,
+    "The post FEV1 trial row prints half under the filter line, so the row needs a look",
+)
+def post_fev1_row_clipped(ctx: RecordContext) -> Iterator[Flag]:
+    # one flag per block (page) with every cell of the row attached, not one per cell
+    by_page: dict[int | None, list[ReadingCondition]] = defaultdict(list)
+    for c in ctx.conditions_of(cond.POST_ROW_CLIPPED):
+        by_page[c.page].append(c)
+    for page, cs in sorted(by_page.items(), key=lambda kv: kv[0] or 0):
+        keys = tuple(c.key for c in cs if c.key is not None)
+        yield ctx.flag(
+            "layout.post_fev1_row_clipped",
+            f"post FEV1 trial row is printed half-hidden under the marker line "
+            f"({len(cs)} cells read)",
+            keys,
+            page=page,
+        )

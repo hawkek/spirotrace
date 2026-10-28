@@ -156,6 +156,11 @@ def test_clipped_post_row_and_core_field_not_extracted() -> None:
     rec.put(
         P.FEV1, R.POST_TRIAL, "3.1", 2, conditions=[Condition(cond.POST_ROW_CLIPPED)]
     )
+    rec.put(
+        P.FEV1, R.POST_TRIAL, "3.0", 3, conditions=[Condition(cond.POST_ROW_CLIPPED)]
+    )
     rec.note(cond.CORE_FIELD_NOT_EXTRACTED, "FEV1 lln", 1)
     ids = rule_ids(run(rec))
     assert {"layout.post_fev1_row_clipped", "layout.core_field_not_extracted"} <= ids
+    clipped = flags_of(run(rec), "layout.post_fev1_row_clipped")
+    assert len(clipped) == 1 and len(clipped[0].keys) == 2  # one flag per block
