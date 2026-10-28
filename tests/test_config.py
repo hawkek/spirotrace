@@ -33,7 +33,7 @@ from spirotrace.config import (
 
 # Pinned so that any schema change (new key, new default, renamed table) fails
 # CI and has to be made deliberately, with SCHEMA_VERSION bumped.
-DEFAULT_HASH = "d3bc20bbfe2af0ebaca3f85318d0a1416f5bb776d083ae0310720e83db215dfc"
+DEFAULT_HASH = "5fd9f89ab5d9d915ac7b382c36b5be1cc2f8374a3a21d74fa175e94599018480"
 
 
 def project(tmp_path: Path, base: str = "", **profiles: str) -> Path:
@@ -74,7 +74,7 @@ def test_empty_file_gives_all_defaults(tmp_path: Path) -> None:
 
 def test_defaults_are_the_expected_object() -> None:
     assert default_settings() == Settings(
-        templates=TemplateSettings(use=(), dirs=()),
+        templates=TemplateSettings(use=(), dirs=(), reader=""),
         ocr=OcrSettings(missing_pages=False, second_ocr=False),
         reference=ReferenceSettings(equations="gli_2012"),
         subject_id=SubjectIdSettings(pattern="^[0-9]+"),
@@ -298,13 +298,14 @@ def test_every_switch_change_alters_the_hash_via_a_profile(tmp_path: Path) -> No
 
 
 def test_schema_version_is_part_of_the_hash(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(config, "SCHEMA_VERSION", 2)
+    monkeypatch.setattr(config, "SCHEMA_VERSION", 99)
     assert default_settings().settings_hash != DEFAULT_HASH
 
 
 def test_hashed_dict_drops_only_unhashed_keys() -> None:
     hashed = default_settings().hashed_dict()
     assert "dirs" not in hashed["templates"]
+    assert "reader" not in hashed["templates"]
     assert "tools" not in hashed
     assert hashed["ocr"] == {"missing_pages": False, "second_ocr": False}
 
@@ -324,7 +325,7 @@ def test_profile_overrides_switches_and_replaces_lists(tmp_path: Path) -> None:
     )
     settings = load_settings(folder, profile="ablate")
     assert settings == Settings(
-        templates=TemplateSettings(use=("spiro_a",), dirs=()),
+        templates=TemplateSettings(use=("spiro_a",), dirs=(), reader=""),
         ocr=OcrSettings(missing_pages=False, second_ocr=True),
         reference=ReferenceSettings(equations="gli_2012"),
         subject_id=SubjectIdSettings(pattern="^[0-9]+"),
@@ -393,6 +394,7 @@ def test_schema_switches_are_the_five_agreed() -> None:
 def test_unhashed_keys_are_machine_description_only() -> None:
     assert [f.key for f in SCHEMA if not f.hashed] == [
         "templates.dirs",
+        "templates.reader",
         "tools.rscript",
         "tools.tesseract",
     ]

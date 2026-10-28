@@ -209,6 +209,16 @@ THRESHOLDS: dict[str, Threshold] = {
     ),
 }
 
+THRESHOLDS["bdr_pct_pred"] = Threshold(
+    10,
+    "NAC 2023 handbook and the lab's report text (decided 14 Oct 2026); "
+    "ATS/ERS 2022 (> 10) is the documented alternative",
+    "% of predicted, positive at or above",
+)
+THRESHOLDS["bdr_2005_pct"] = Threshold(12, "ATS/ERS 2005", "% from baseline")
+THRESHOLDS["bdr_2005_litres"] = Threshold(0.200, "ATS/ERS 2005", "L from baseline")
+THRESHOLDS["severity_mild"] = Threshold(-2.5, "ATS/ERS 2022", "FEV1 z at or above")
+THRESHOLDS["severity_moderate"] = Threshold(-4.0, "ATS/ERS 2022", "FEV1 z at or above")
 THRESHOLDS["hb_reference_male"] = Threshold(
     14.6, "ERS/ATS 2017 DLCO standard (Graham et al.)", "g/dL"
 )
