@@ -18,6 +18,7 @@ from spirotrace.rspiro import GliResults, RspiroBridge, RspiroError
 from . import (  # noqa: F401 - importing registers the rules
     rules_cohort,
     rules_consistency,
+    rules_derived,
     rules_free_text,
     rules_gli,
     rules_range,
