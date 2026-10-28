@@ -100,3 +100,9 @@ INTERPRETATION_FINDING_NOT_RECOGNISED = "interpretation_finding_not_recognised"
 # failure that ended a record's readings
 SECOND_READING_CONFIDENCE = "second_reading_confidence"
 SECOND_READING_FAILED = "second_reading_failed"
+# Image stage (stage 4): what the rendered cell showed. The stage applies the
+# thresholds from the threshold table and records the measurement as the detail.
+IMAGE_STRUCK_LINE = "image_struck_line"
+IMAGE_INK_IN_EMPTY_CELL = "image_ink_in_empty_cell"
+IMAGE_EMPTY_CELL_BLANK = "image_empty_cell_blank"
+IMAGE_RED_TEXT = "image_red_text"

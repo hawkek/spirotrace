@@ -22,6 +22,7 @@ MANUAL_S7 = "the device operator's manual s.7 (device range)"
 MANUAL_S311 = "the device operator's manual s.3.11 (session quality)"
 PHYSIOLOGICAL = "adult clinical plausibility (v0.3.14)"
 V0314 = "v0.3.14 spiro_extract.py"
+SYNTHETIC_CELLS = "set on synthetic cells (tests/test_checks_image.py)"
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,6 +207,32 @@ THRESHOLDS: dict[str, Threshold] = {
     "gli_several_disagree": Threshold(2, V0314, "z disagreements per record"),
     "second_reading_confidence": Threshold(
         50, V0314, "Tesseract confidence for a check"
+    ),
+    # stage 4 image checks (README 0.3.16 features, not in 0.3.14); the values were
+    # set on the synthetic cells drawn in tests/test_checks_image.py, which prints
+    # each cell's measurement next to its threshold
+    "struck_row_dark_fraction": Threshold(
+        0.8,
+        SYNTHETIC_CELLS,
+        "share of the ink width that is dark along one row in the middle third "
+        "of the digits; printed digits leave gaps between characters (about 0.5)",
+    ),
+    "struck_min_aspect": Threshold(
+        1.0,
+        SYNTHETIC_CELLS,
+        "ink width over ink height; a lone 1 or 4 is dark along a whole row",
+    ),
+    "empty_cell_ink": Threshold(
+        0.01,
+        SYNTHETIC_CELLS,
+        "dark fraction of an empty cell's slot; a printed digit is 0.02 to 0.03, "
+        "a short dash 0.004 (the format, stays blank)",
+    ),
+    "red_text_fraction": Threshold(
+        0.02, SYNTHETIC_CELLS, "red-pixel fraction of a cell; black digits give 0"
+    ),
+    "red_pixel_dominance": Threshold(
+        60, SYNTHETIC_CELLS, "red minus the larger of green and blue, 0 to 255"
     ),
 }
 

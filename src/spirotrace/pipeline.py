@@ -3,8 +3,8 @@
 
 ``run_project`` follows flow 2 of the runtime sequences: settings, the reader,
 each file through the words cache and the reader (one bad file gets an
-input-layer error and the run continues), the rules with one bridge call, the
-cohort pass, the store write and counts to the console. ``export_project``
+input-layer error and the run continues), the image stage when ``image.checks``
+is on, the second reading, the rules with one bridge call, the cohort pass, the store write and counts to the console. ``export_project``
 reads the raw store and the events, resolves, reruns the rules over the
 resolved values (cohort pass included), derives, runs the post-derive rules
 and writes checkpoint 4. Console output is counts only.
@@ -21,10 +21,12 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from spirotrace.checks import CheckRun, Flag, check_records
+from spirotrace.checks.rules_image import image_thresholds
 from spirotrace.config import Settings
 from spirotrace.derive import DeriveRun, derive_records
 from spirotrace.export import ExportFiles, export_dataset
 from spirotrace.ingest import TesseractTool, file_hash_of, tesseract_tool
+from spirotrace.ingest.image_stage import ImageStats, image_check_records
 from spirotrace.ingest.second_ocr import (
     SecondOcrCache,
     SecondOcrStats,
@@ -183,6 +185,7 @@ class RunResult:
     rebuilt: bool = True
     notices: list[str] = field(default_factory=list)
     second_ocr: SecondOcrStats | None = None
+    image: ImageStats | None = None
 
     def summary_lines(self) -> list[str]:
         """Counts only: never a record id, a value or a file name."""
@@ -204,6 +207,13 @@ class RunResult:
             )
         else:
             out.append(f"gli subjects sent to rspiro: {self.check.gli_subjects}")
+        if self.image is not None:
+            i = self.image
+            out.append(
+                f"image checks: cells {i.cells}, struck {i.struck}, "
+                f"ink in empty cells {i.ink_in_empty}, blank empty cells {i.blank_empty}, "
+                f"red {i.red}"
+            )
         if self.second_ocr is not None:
             s = self.second_ocr
             out.append(
@@ -228,6 +238,7 @@ def run_project(
     tool = check_tools(settings)
     reader = reader or load_reader(settings, project_dir)
     ocr_stats = SecondOcrStats() if settings.ocr.second_ocr else None
+    image_stats = ImageStats() if settings.image.checks else None
     code = code_version()
     cache_dir = project_dir / CACHE_DIR
     used_ids: set[str] = set()
@@ -250,6 +261,12 @@ def run_project(
             for r in read.records
         ]
         mark_ocr_pages(own, read.pages)
+        if image_stats is not None:
+            image_stats.add(
+                image_check_records(
+                    own, read.pages, path.read_bytes(), image_thresholds()
+                )
+            )
         if ocr_stats is not None and tool is not None:
             ocr_stats.add(
                 second_read_records(
@@ -293,6 +310,7 @@ def run_project(
         rebuilt=not stamp_matches(previous, stamp),
         notices=notices,
         second_ocr=ocr_stats,
+        image=image_stats,
     )
     if previous is not None and result.rebuilt:
         notices.append("raw store rebuilt: the previous stamp differed")

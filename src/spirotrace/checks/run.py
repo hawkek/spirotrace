@@ -21,6 +21,7 @@ from . import (  # noqa: F401 - importing registers the rules
     rules_derived,
     rules_free_text,
     rules_gli,
+    rules_image,
     rules_range,
     rules_reading,
     rules_second_ocr,
@@ -88,9 +89,12 @@ def check_records(
         if not run.not_run_reason:
             run.not_run_reason = "no Rscript configured or found"
     demote = any(r.id == "cohort.column_empty_by_format" for r in rules)
+    blank = any(r.id == "image.empty_cell_blank" for r in rules)
     for ctx in contexts:
         if demote:
             ctx.empty_by_format = stats.empty_by_format.get(ctx.layout, frozenset())
+        if blank:
+            ctx.blank_on_scan = rules_image.blank_on_scan(ctx)
         for r in record_rules:
             _run_rule(ctx, r)
         if results is not None:

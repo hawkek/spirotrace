@@ -105,8 +105,20 @@ def eligible(obs: Observation) -> bool:
     )
 
 
-def crop_box(obs: Observation, page: Page, size: tuple[int, int]) -> PixelBox:
-    """The cell's pixel box on the rendered page: deskew undone, margins added."""
+def crop_box(
+    obs: Observation,
+    page: Page,
+    size: tuple[int, int],
+    *,
+    margin_x: float = MARGIN_X,
+    margin_y: float = MARGIN_Y,
+) -> PixelBox:
+    """The cell's pixel box on the rendered page: deskew undone, margins added.
+
+    The image stage uses the same box with no margin (a margin would count a
+    neighbour's ink as the cell's); the defaults are the second reading's and
+    are part of its cache key.
+    """
     assert obs.bbox is not None
     w, h = size
     x0, y0, x1, y1 = obs.bbox
@@ -115,10 +127,10 @@ def crop_box(obs: Observation, page: Page, size: tuple[int, int]) -> PixelBox:
     # deskew moved every word by -skew * (cx - 0.5); the image is not deskewed
     dy = page.skew * ((x0 + x1) / 2 - 0.5)
     return (
-        int(max(0.0, x0 - MARGIN_X) * w),
-        int(max(0.0, y0 + dy - MARGIN_Y) * h),
-        int(min(1.0, x1 + MARGIN_X) * w),
-        int(min(1.0, y1 + dy + MARGIN_Y) * h),
+        int(max(0.0, x0 - margin_x) * w),
+        int(max(0.0, y0 + dy - margin_y) * h),
+        int(min(1.0, x1 + margin_x) * w),
+        int(min(1.0, y1 + dy + margin_y) * h),
     )
 
 
