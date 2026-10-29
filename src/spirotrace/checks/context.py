@@ -76,6 +76,9 @@ class RecordContext:
     empty_by_format: frozenset[Slot] = frozenset()
     """Slots the cohort found empty in nearly every record of this layout (the
     report's format, not an OCR drop); set by the runner before the rules."""
+    blank_on_scan: frozenset[ObservationKey] = frozenset()
+    """Keys of empty cells the image stage found blank on the scan (nothing was
+    dropped); set by the runner when ``image.empty_cell_blank`` is enabled."""
 
     @classmethod
     def of(cls, rec: RecordInput) -> RecordContext:

@@ -636,6 +636,8 @@ def cell_empty_in_filled_column(ctx: RecordContext) -> Iterator[Flag]:
         slot = (c.key.parameter, c.key.column_role, c.key.display_position)
         if slot in ctx.empty_by_format:
             continue  # cohort.column_empty_by_format reports it as a note
+        if c.key in ctx.blank_on_scan:
+            continue  # image.empty_cell_blank reports it as a note
         yield ctx.flag(
             "layout.cell_empty_in_filled_column",
             "cell empty although column has values in other rows (possible OCR drop)",
