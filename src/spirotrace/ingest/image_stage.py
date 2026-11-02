@@ -3,11 +3,13 @@ cannot say (README 0.3.16 "scan image check", not in v0.3.14).
 
 Each page is rendered once at 300 dpi with its rotation; a cell's pixel box is
 the second reading's (deskew undone, an empty cell looked for in the column
-slot to its left) without its margin. On a numeric value cell the stage looks
-for a horizontal ink line through the digits (the device strikes through the
-trials it marks "Not Usable"; the number stays readable and is kept, so the
-observation gets ``struck``) and for red ink (the lab prints out-of-range
-values in red, so the observation gets ``marked``). On an empty cell it
+slot to its left) without its margin. On a trial cell the stage looks for a
+horizontal ink line through the digits (the device strikes through the trials
+it marks "Not Usable"; the number stays readable and is kept, so the
+observation gets ``struck``; on the real scans a table rule through any other
+cell measured the same as a strike, so no other cell is tested). On every
+numeric value cell it looks for red ink (the lab prints out-of-range values in
+red, so the observation gets ``marked``). On an empty cell it
 measures the ink: something printed there is an OCR drop; nothing is the
 report's format. The decisions use the thresholds the caller passes (they live
 in the threshold table with their source) and are recorded as reading
@@ -38,6 +40,11 @@ from .second_ocr import MIN_CROP_PX, SECOND_READING_ROLES, RecordLike, crop_box
 from .tesseract import otsu_binarise
 
 DPI = 300
+STRUCK_ROLES: frozenset[ColumnRole] = frozenset(
+    {ColumnRole.TRIAL, ColumnRole.POST_TRIAL}
+)
+"""The only cells a strike is looked for in: the device strikes trial rows and
+nothing else; elsewhere a table rule through the digits looks the same."""
 INK_DARK = 160
 """Grayscale below this is ink: the blank-page check's cut (:func:`ink_fraction`).
 A fixed cut, not Otsu, because Otsu on a blank cell splits the scanner noise."""
@@ -191,11 +198,13 @@ def image_check_records(
             crop = img.crop(box)
             seen: list[tuple[str, str]] = []  # (condition code, measurement)
             if value:
-                darkest, aspect = struck_row_fraction(crop)
-                struck = (
-                    darkest >= thresholds.struck_row_dark_fraction
-                    and aspect >= thresholds.struck_min_aspect
-                )
+                struck = False
+                if key.column_role in STRUCK_ROLES:
+                    darkest, aspect = struck_row_fraction(crop)
+                    struck = (
+                        darkest >= thresholds.struck_row_dark_fraction
+                        and aspect >= thresholds.struck_min_aspect
+                    )
                 red_share = red_fraction_of(crop, thresholds.red_pixel_dominance)
                 red = red_share >= thresholds.red_text_fraction
                 if struck:
