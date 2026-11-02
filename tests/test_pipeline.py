@@ -250,6 +250,18 @@ def test_export_without_a_run_is_a_pipeline_error(tmp_path: Path) -> None:
         export_project(folder, load_settings(folder))
 
 
+def test_export_of_a_store_without_records_is_refused(tmp_path: Path) -> None:
+    folder = project(tmp_path)
+    for pdf in (folder / "reports").glob("*.pdf"):
+        pdf.unlink()
+    s = load_settings(folder)
+    run_project(folder, s, fake_reader)
+    assert (folder / "outputs" / "raw" / "stamp.json").is_file()
+    with pytest.raises(PipelineError, match="no records"):
+        export_project(folder, s)
+    assert not (folder / "outputs" / RESOLVED_FILE).exists()
+
+
 def test_export_resolves_against_events_and_derives(tmp_path: Path) -> None:
     folder = project(tmp_path)
     s = load_settings(folder)
