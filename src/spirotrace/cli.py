@@ -16,6 +16,7 @@ from pathlib import Path
 from . import __version__
 from .config import SCHEMA, SETTINGS_FILE, SettingsError, load_settings
 from .ingest import find_tesseract
+from .model import ColumnRole, Parameter
 from .pipeline import (
     CACHE_DIR,
     OUTPUTS_DIR,
@@ -23,11 +24,15 @@ from .pipeline import (
     REVIEW_DIR,
     PipelineError,
     export_project,
+    load_reader,
     pdf_files,
     run_project,
 )
 from .privacy import SHARE_DIR
-from .rspiro import find_rscript
+from .review import core_fields_of, serve_review
+from .rspiro import RspiroBridge, find_rscript
+from .store import RAW_DIR, StoreError, read_raw
+from .store.events import REVIEWER_RE
 
 PROJECT_FOLDERS: tuple[str, ...] = (
     REPORTS_DIR,
@@ -123,6 +128,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         parsers[name].add_argument(
             "--profile", default=None, help="ablation profile: profiles/<name>.toml"
         )
+    review = parsers["review"]
+    review.add_argument(
+        "--port", type=int, default=0, help="local port (default: a free one)"
+    )
+    review.add_argument(
+        "--no-browser", action="store_true", help="do not open the browser"
+    )
+    review.add_argument(
+        "--reviewer", default=None, help="reviewer initials (else asked once)"
+    )
+    review.add_argument(
+        "--core-only", action="store_true", help="queue the core fields only"
+    )
     a = ap.parse_args(argv)
     say = print
     if a.command is None:
@@ -148,8 +166,75 @@ def main(argv: Sequence[str] | None = None) -> int:
         except PipelineError as exc:
             say(str(exc))
             return 2
+    if a.command == "review":
+        return review_command(a, say)
     say(f"spirotrace {__version__}: '{a.command}' is not implemented yet.")
     return 1
+
+
+def ask_reviewer(say) -> str | None:
+    """The reviewer's initials, asked once per server session."""
+    try:
+        text = input("reviewer initials (1 to 8 letters or digits): ").strip()
+    except EOFError:
+        text = ""
+    if not REVIEWER_RE.match(text):
+        say("no reviewer: give initials with --reviewer or at the prompt")
+        return None
+    return text
+
+
+def review_command(a, say) -> int:
+    """Flow 3: the review queue over the raw store, answers appended as events."""
+    try:
+        settings = load_settings(a.project, None)
+    except SettingsError as exc:
+        say(str(exc))
+        return 2
+    try:
+        store = read_raw(a.project / OUTPUTS_DIR / RAW_DIR)
+    except StoreError as exc:
+        say(f"no raw store to review: {exc}; run `spirotrace run` first")
+        return 2
+    if not store.records:
+        say("the raw store holds no records: nothing to review")
+        return 2
+    core_fields: tuple[tuple[Parameter, ColumnRole], ...] = ()
+    try:
+        load_reader(settings, a.project)  # puts templates.dirs on the path
+        core_fields = core_fields_of(settings)
+    except PipelineError:
+        pass
+    if a.core_only and not core_fields:
+        say(
+            "--core-only: the reader declares no CORE_FIELDS; queue everything or set them"
+        )
+        return 2
+    reviewer = a.reviewer or ask_reviewer(say)
+    if reviewer is None:
+        return 2
+    if not REVIEWER_RE.match(reviewer):
+        say("reviewer initials must be 1 to 8 letters or digits")
+        return 2
+    bridge = RspiroBridge.from_settings_path(settings.tools.rscript)
+    say("rspiro: " + ("available" if bridge else "absent (gli flags kept as run)"))
+    try:
+        serve_review(
+            a.project,
+            settings,
+            store,
+            reviewer,
+            port=a.port,
+            open_browser=not a.no_browser,
+            core_fields=core_fields,
+            core_only=a.core_only,
+            bridge=bridge,
+            console=say,
+        )
+    except OSError as exc:
+        say(f"could not start the review app: {exc}")
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
