@@ -214,8 +214,29 @@ def drawn_record() -> tuple[FakeRecord, DrawnPage, dict[str, ObservationKey]]:
         "header": put(rec, P.AGE, R.MEASURED, "40", pg.place(draw_cell("40"))),
         "dash": put(rec, P.PEF, R.PRE, "-", pg.place(draw_cell("-"))),
         "nobox": put(rec, P.FET, R.PRE, "7.1", None),
+        # a session-quality field not found in its sentence keeps the sentence's
+        # box; the ink at the sentence's end is not a dropped cell
+        "sentence": put(
+            rec,
+            P.FEV1_VARIABILITY_PCT,
+            R.PRE,
+            "",
+            pg.place(draw_cell("(4.0%)")),
+            conditions=[Condition(cond.FIELD_NOT_LOCATED, "fev1_var_pct")],
+        ),
     }
     return rec, pg, keys
+
+
+def test_a_field_not_found_in_its_sentence_is_not_an_empty_slot() -> None:
+    rec, pg, keys = drawn_record()
+    image_check_records([rec], [page()], b"", image_thresholds(), render=pg.render)
+    seen = {
+        c.code
+        for c in rec.conditions
+        if c.key == keys["sentence"] and c.code.startswith("image_")
+    }
+    assert seen == set()
 
 
 def test_stage_sets_struck_and_marked_and_records_the_conditions() -> None:

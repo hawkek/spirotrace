@@ -183,10 +183,19 @@ def image_check_records(
         return images[n]
 
     for rec in records:
+        # a field looked for in a sentence (the device's session-quality line) and
+        # not found carries the sentence's box, not a cell's: the slot to its left
+        # is the end of the sentence, not an empty cell
+        no_slot = {
+            c.key
+            for c in rec.conditions
+            if c.code == cond.FIELD_NOT_LOCATED and c.key is not None
+        }
         for key, obs in list(rec.observations.items()):
             if key.page not in by_number:
                 continue
-            value, empty = eligible_value(obs), eligible_empty(obs)
+            value = eligible_value(obs)
+            empty = eligible_empty(obs) and key not in no_slot
             if not (value or empty):
                 continue
             img = image_of(key.page)
