@@ -103,6 +103,45 @@ def _rotate_chars(
     return out
 
 
+def _visible_frame(pg: Any) -> tuple[float, float, float, float]:
+    """The region the renderer shows, as ``(x0, top, width, height)`` in
+    pdfplumber's frame: the CropBox clipped to the MediaBox.
+
+    pdfplumber keeps character boxes against the MediaBox and ignores its
+    origin, while pypdfium2 renders the CropBox. The lab scans carry a trimmed
+    CropBox, so until 3 Nov 2026 every cell box sat about half a row below its
+    ink on the rendered page (the image stage then measured the next row's
+    digits in an empty slot, and the second reading cropped half a number).
+    """
+    mx0, mt, mx1, mb = (float(v) for v in pg.mediabox)
+    cx0, ct, cx1, cb = (float(v) for v in pg.cropbox)
+    x0, top = max(mx0, cx0), max(mt, ct)
+    x1, bottom = min(mx1, cx1), min(mb, cb)
+    if x1 - x0 <= 0 or bottom - top <= 0:  # boxes that do not meet: the MediaBox
+        x0, top, x1, bottom = mx0, mt, mx1, mb
+    return x0, top, x1 - x0, bottom - top
+
+
+def _shift_chars(
+    chars: list[dict[str, Any]], dx: float, dy: float
+) -> list[dict[str, Any]]:
+    """Character boxes moved so that the visible frame's corner is the origin."""
+    if dx == 0 and dy == 0:
+        return chars
+    out = []
+    for c in chars:
+        d = dict(c)
+        d.update(
+            x0=c["x0"] - dx,
+            x1=c["x1"] - dx,
+            top=c["top"] - dy,
+            bottom=c["bottom"] - dy,
+            doctop=c["doctop"] - dy,
+        )
+        out.append(d)
+    return out
+
+
 def _words_at(
     chars: list[dict[str, Any]], k: int, width: float, height: float
 ) -> list[Word]:
@@ -190,8 +229,8 @@ def load_pdf(
     try:
         with pdfplumber.open(io.BytesIO(data)) as pdf:
             for i, pg in enumerate(pdf.pages):
-                width, height = float(pg.width), float(pg.height)
-                chars = pg.chars
+                fx0, ftop, width, height = _visible_frame(pg)
+                chars = _shift_chars(pg.chars, fx0, ftop)
                 best: tuple[int, int, list[Word]] | None = None
                 for extra in ROTATIONS:
                     words = _words_at(chars, extra, width, height)
