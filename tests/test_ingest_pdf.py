@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from pdf_helpers import PAGE_H, PAGE_W, make_pdf
+from PIL import ImageOps
 
 from spirotrace.ingest import (
     BLANK_MAX_INK,
@@ -60,6 +61,36 @@ def test_words_have_normalised_boxes_and_the_hash_is_sha256(tmp_path: Path) -> N
         "Alpha Beta Gamma Delta",
         "Parameter 1.23 4.56",
     ]
+
+
+BOXES = [
+    pytest.param(None, None, id="mediabox at the origin"),
+    pytest.param(None, (20, 30, 575, 812), id="trimmed cropbox"),
+    pytest.param((10, 40, 605, 882), None, id="mediabox away from the origin"),
+    pytest.param((10, 40, 605, 882), (10, 60, 605, 882), id="both"),
+]
+
+
+@pytest.mark.parametrize(("mediabox", "cropbox"), BOXES)
+def test_word_boxes_sit_on_their_ink_in_the_rendered_page(
+    tmp_path: Path, mediabox, cropbox
+) -> None:
+    # the lab scans carry a trimmed CropBox: pdfplumber measures against the
+    # MediaBox, the renderer shows the CropBox, and every cell box was half a
+    # row low (3 Nov 2026)
+    data = make_pdf([[("3.05", 300.0, 500.0)]], mediabox=mediabox, cropbox=cropbox)
+    f = load_pdf(write(tmp_path, data), ORIENT, norm)
+    word = f.pages[0].words[0]
+    img = ImageOps.grayscale(f.render(1, 144))
+    dark = ImageOps.invert(img).point(lambda v: 255 if v > 95 else 0).getbbox()
+    assert dark is not None
+    w, h = img.size
+    ink = (dark[0] / w, dark[1] / h, dark[2] / w, dark[3] / h)
+    assert abs(word.x0 - ink[0]) < 0.003 and abs(word.x1 - ink[2]) < 0.003
+    # the glyph box includes ascent and descent the digits do not fill
+    assert (
+        ink[1] - 0.004 < word.top <= ink[1] and ink[3] <= word.bottom < ink[3] + 0.004
+    )
 
 
 def test_pages_own_rotate_entry_is_applied(tmp_path: Path) -> None:

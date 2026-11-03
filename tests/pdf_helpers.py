@@ -15,13 +15,23 @@ def _pdf_string(text: str) -> str:
     )
 
 
+def _box(b: tuple[float, float, float, float]) -> str:
+    return " ".join(f"{v:g}" for v in b)
+
+
 def make_pdf(
-    pages: list[list[tuple[str, float, float]]], rotate: list[int] | None = None
+    pages: list[list[tuple[str, float, float]]],
+    rotate: list[int] | None = None,
+    *,
+    mediabox: tuple[float, float, float, float] | None = None,
+    cropbox: tuple[float, float, float, float] | None = None,
 ) -> bytes:
     """A PDF whose pages carry the given ``(text, x, y)`` items in PDF points.
 
     ``rotate`` gives a ``/Rotate`` value per page (the content is stored
-    sideways and the viewer turns it upright).
+    sideways and the viewer turns it upright). ``mediabox`` replaces the A4
+    MediaBox at the origin and ``cropbox`` adds a CropBox, both as raw PDF
+    ``[x0 y0 x1 y1]`` values, on every page.
     """
     rotate = rotate or [0] * len(pages)
     objects: list[bytes] = []
@@ -41,8 +51,11 @@ def make_pdf(
         stream = "\n".join(ops)
         content = add(f"<< /Length {len(stream)} >>\nstream\n{stream}\nendstream")
         w, h = (PAGE_H, PAGE_W) if rot in (90, 270) else (PAGE_W, PAGE_H)
+        boxes = f"/MediaBox [{_box(mediabox) if mediabox else f'0 0 {w} {h}'}]"
+        if cropbox:
+            boxes += f" /CropBox [{_box(cropbox)}]"
         page = add(
-            f"<< /Type /Page /Parent {kids_placeholder} 0 R /MediaBox [0 0 {w} {h}] "
+            f"<< /Type /Page /Parent {kids_placeholder} 0 R {boxes} "
             f"/Rotate {rot} /Resources << /Font << /F1 {font} 0 R >> >> /Contents {content} 0 R >>"
         )
         page_ids.append(page)

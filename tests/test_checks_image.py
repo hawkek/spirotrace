@@ -84,8 +84,23 @@ def test_empty_cell_ink_separates_a_digit_from_blank_and_a_short_dash() -> None:
     print(
         f"ink: digit {digit:.3f} one {one:.3f} dash {dash:.3f} blank {blank} (cut {cut})"
     )
-    assert blank == 0.0 and dash < cut <= one < digit
-    # a short dash is the report's format (curated list 1.5), so it stays blank
+    assert blank == 0.0 and dash < cut
+    assert dash < one < digit
+    # a short dash is the report's format (curated list 1.5), so it stays blank; the
+    # cut itself is set on real scans (below), where a digit is far darker than here
+
+
+# Dark fractions Kirsty read off the review queue on 3 Nov 2026 (messages only, no
+# values or ids): cells holding a printed number the text layer missed, and cells
+# that were blank on the scan (noise, one with a dashed rule through it).
+REAL_NUMBER_INK = (0.147, 0.115, 0.133, 0.128, 0.123, 0.125, 0.113, 0.095, 0.087, 0.041)
+REAL_BLANK_INK = (0.017, 0.013, 0.023, 0.021, 0.028, 0.016, 0.011, 0.011)
+
+
+def test_empty_cell_ink_cut_sits_between_the_real_blanks_and_numbers() -> None:
+    cut = THRESHOLDS["empty_cell_ink"].value
+    assert max(REAL_BLANK_INK) < cut <= min(REAL_NUMBER_INK)
+    assert "real scans" in THRESHOLDS["empty_cell_ink"].source
 
 
 def test_red_fraction_separates_red_print_from_black_and_grey() -> None:
@@ -109,7 +124,10 @@ def test_image_thresholds_come_from_the_table_with_a_source() -> None:
         "red_text_fraction",
         "red_pixel_dominance",
     ):
-        assert "synthetic cells" in THRESHOLDS[name].source
+        assert (
+            "synthetic cells" in THRESHOLDS[name].source
+            or "real scans" in THRESHOLDS[name].source
+        )
 
 
 # --- the stage on a drawn page -----------------------------------------------------
@@ -186,7 +204,9 @@ def drawn_record() -> tuple[FakeRecord, DrawnPage, dict[str, ObservationKey]]:
             P.FVC,
             R.LLN,
             "",
-            pg.place(draw_cell("2")),
+            # a lower limit the text layer dropped; a printed number measures about
+            # 0.11 here and 0.04 to 0.15 on the real scans
+            pg.place(draw_cell("2.50")),
             conditions=[Condition(cond.CELL_EMPTY_IN_FILLED_COLUMN)],
         ),
         # a header field shares the lab's value role and is looked at; a dash and a
@@ -194,8 +214,29 @@ def drawn_record() -> tuple[FakeRecord, DrawnPage, dict[str, ObservationKey]]:
         "header": put(rec, P.AGE, R.MEASURED, "40", pg.place(draw_cell("40"))),
         "dash": put(rec, P.PEF, R.PRE, "-", pg.place(draw_cell("-"))),
         "nobox": put(rec, P.FET, R.PRE, "7.1", None),
+        # a session-quality field not found in its sentence keeps the sentence's
+        # box; the ink at the sentence's end is not a dropped cell
+        "sentence": put(
+            rec,
+            P.FEV1_VARIABILITY_PCT,
+            R.PRE,
+            "",
+            pg.place(draw_cell("(4.0%)")),
+            conditions=[Condition(cond.FIELD_NOT_LOCATED, "fev1_var_pct")],
+        ),
     }
     return rec, pg, keys
+
+
+def test_a_field_not_found_in_its_sentence_is_not_an_empty_slot() -> None:
+    rec, pg, keys = drawn_record()
+    image_check_records([rec], [page()], b"", image_thresholds(), render=pg.render)
+    seen = {
+        c.code
+        for c in rec.conditions
+        if c.key == keys["sentence"] and c.code.startswith("image_")
+    }
+    assert seen == set()
 
 
 def test_stage_sets_struck_and_marked_and_records_the_conditions() -> None:
