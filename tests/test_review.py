@@ -438,5 +438,6 @@ def test_cli_review_runs_headless_and_refuses_without_a_store(
     out = capsys.readouterr().out
     assert "queue: 2 items" in out and started["url"].startswith("http://127.0.0.1:")
     assert "session ended: 0 answers" in out
-    assert "11" not in out.replace("127.0.0.1", "").replace("spirotrace 0", "")
+    # no record id on the console; the address carries a random port, so it goes first
+    assert "11" not in out.replace(started["url"], "").replace("spirotrace 0", "")
     assert len(read_sessions(folder / "review")) == 1
