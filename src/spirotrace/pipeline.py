@@ -377,6 +377,13 @@ def export_project(
         raise PipelineError(
             f"no raw store to export: {exc}; run `spirotrace run` first"
         ) from exc
+    if not store.records:
+        # a run that saw no PDFs leaves a store with no records; the files would
+        # be written empty and look like a finished export (seen 2 Nov 2026)
+        raise PipelineError(
+            "the raw store holds no records: nothing to export; put the PDFs in "
+            f"{REPORTS_DIR}/ and run `spirotrace run` again"
+        )
     events = read_events(project_dir / REVIEW_DIR, notices.append)
     merged = merge_events(events)
     if bridge is None:

@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>spirotrace review</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --ink: #1d2328; --muted: #6a737b; --line: #d9dde2; --bg: #f6f7f8; --err: #b3261e; --chk: #9a6700; --ok: #1b7f3b; --box: #fff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); background: var(--bg); }
+  header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 8px 16px; background: var(--box); border-bottom: 1px solid var(--line); }
+  header .counts { color: var(--muted); }
+  header label { color: var(--muted); }
+  header select, header button { font: inherit; }
+  main { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(360px, 520px); gap: 16px; padding: 16px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--box); border: 1px solid var(--line); border-radius: 6px; padding: 12px 14px; }
+  #image { display: flex; flex-direction: column; gap: 8px; }
+  #image img { max-width: 100%; height: auto; border: 1px solid var(--line); background: #fff; image-rendering: auto; }
+  #image.page img { max-height: 80vh; width: auto; max-width: 100%; }
+  #snippet { cursor: zoom-in; }
+  #image.page #snippet { cursor: zoom-out; }
+  h2 { margin: 0 0 6px; font-size: 15px; }
+  .where { color: var(--muted); margin-bottom: 8px; }
+  .big { font-size: 26px; font-weight: 600; letter-spacing: 0.5px; }
+  .big small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 8px; }
+  .flag { padding: 6px 8px; margin: 4px 0; border-left: 3px solid var(--chk); background: #fdf8ea; border-radius: 3px; }
+  .flag.error { border-left-color: var(--err); background: #fbeeed; }
+  .flag code { font-size: 12px; color: var(--muted); }
+  table.row { border-collapse: collapse; margin: 6px 0; width: 100%; }
+  table.row td, table.row th { border-bottom: 1px solid var(--line); padding: 3px 6px; text-align: left; font-weight: normal; }
+  table.row th { color: var(--muted); font-size: 12px; }
+  table.row td.this { font-weight: 600; }
+  .note { color: var(--muted); font-size: 13px; }
+  .others { margin: 6px 0; padding: 6px 8px; background: #eef4ff; border-radius: 3px; }
+  .mine { margin: 6px 0; padding: 6px 8px; background: #e9f7ee; border-radius: 3px; }
+  #answer { width: 100%; font: 20px/1.3 ui-monospace, Consolas, monospace; padding: 8px 10px; border: 2px solid var(--line); border-radius: 4px; margin-top: 10px; }
+  #answer:focus { outline: none; border-color: #3b6fc4; }
+  #message { min-height: 1.4em; margin-top: 6px; }
+  #message.err { color: var(--err); }
+  #message.ok { color: var(--ok); }
+  .keys { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .keys kbd { font: 12px ui-monospace, Consolas, monospace; background: #eee; border: 1px solid #ccc; border-radius: 3px; padding: 0 4px; }
+  .nav button { font: inherit; padding: 4px 10px; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 10px; background: #e8eaed; color: var(--muted); margin-left: 6px; vertical-align: middle; }
+  .tag.core { background: #dfe9fb; color: #2c4f8f; }
+  .tag.error { background: #fbd9d6; color: var(--err); }
+  .tag.check { background: #fbefc8; color: var(--chk); }
+  #empty { padding: 40px; text-align: center; color: var(--muted); }
+  .suggest { font: inherit; padding: 2px 8px; margin-left: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <strong>spirotrace review</strong>
+  <span class="counts" id="counts"></span>
+  <span class="nav">
+    <button id="prev" title="Alt+Left">&larr; previous</button>
+    <span id="pos"></span>
+    <button id="next" title="Alt+Right">next &rarr;</button>
+  </span>
+  <label><input type="checkbox" id="showAnswered"> show answered</label>
+  <label>rule <select id="ruleFilter"><option value="">all</option></select></label>
+  <button id="finish" title="writes the session row and stops the server">Finish session</button>
+</header>
+<main>
+  <section class="panel" id="image">
+    <img id="snippet" alt="the flagged cell on the scan" title="click or Alt+P for the whole page">
+    <div class="note" id="imageNote"></div>
+  </section>
+  <section class="panel" id="detail">
+    <div id="empty" hidden>Nothing left in the queue for this reviewer.</div>
+    <div id="item">
+      <h2 id="title"></h2>
+      <div class="where" id="where"></div>
+      <div class="big" id="value"></div>
+      <div class="note" id="reading"></div>
+      <div id="flags"></div>
+      <div id="suggestion"></div>
+      <table class="row" id="row"></table>
+      <div id="recordNotes"></div>
+      <div id="others"></div>
+      <div id="mine"></div>
+      <input id="answer" autocomplete="off" spellcheck="false" placeholder="= as read · na · empty · - · struck [value] · x note · withdraw · or the value as printed">
+      <div id="message"></div>
+      <div class="keys"><kbd>Enter</kbd> save &nbsp; <kbd>Alt+&larr;</kbd>/<kbd>Alt+&rarr;</kbd> move &nbsp; <kbd>Alt+P</kbd> page view &nbsp; <kbd>Alt+S</kbd> use suggestion</div>
+    </div>
+  </section>
+</main>
+<script>
+(function () {
+  "use strict";
+  var items = [], index = 0, shownAt = null, shownMs = 0, inFlight = false;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function fetchJSON(url, opts) {
+    return fetch(url, opts).then(function (r) {
+      return r.json().then(function (j) { if (!r.ok) { throw new Error(j.error || r.statusText); } return j; });
+    });
+  }
+
+  function visible() {
+    var rule = $("ruleFilter").value;
+    if (!rule) { return items; }
+    return items.filter(function (it) { return it.flags.some(function (f) { return f.rule_id === rule; }); });
+  }
+
+  function loadItems(keepKey) {
+    var answered = $("showAnswered").checked ? "1" : "0";
+    return fetchJSON("/items?answered=" + answered).then(function (j) {
+      items = j.items;
+      fillRuleFilter();
+      var list = visible();
+      if (keepKey) {
+        var at = list.findIndex(function (it) { return it.key === keepKey; });
+        index = at >= 0 ? at : Math.min(index, Math.max(0, list.length - 1));
+      } else {
+        index = Math.min(index, Math.max(0, list.length - 1));
+      }
+      return fetchJSON("/status");
+    }).then(function (s) {
+      $("counts").textContent = "reviewer " + s.reviewer + " · " + s.open + " open of " + s.items +
+        " items (" + s.core + " core) · " + s.records + " records · " + s.answers + " answers this session" +
+        (s.core_only ? " · core fields only" : "");
+      show();
+    }).catch(function (e) { message(e.message, "err"); });
+  }
+
+  function fillRuleFilter() {
+    var sel = $("ruleFilter"), current = sel.value, rules = {};
+    items.forEach(function (it) { it.flags.forEach(function (f) { rules[f.rule_id] = (rules[f.rule_id] || 0) + 1; }); });
+    sel.innerHTML = "";
+    var all = document.createElement("option"); all.value = ""; all.textContent = "all (" + items.length + ")"; sel.appendChild(all);
+    Object.keys(rules).sort().forEach(function (r) {
+      var o = document.createElement("option"); o.value = r; o.textContent = r + " (" + rules[r] + ")"; sel.appendChild(o);
+    });
+    sel.value = rules[current] ? current : "";
+  }
+
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function describe(ev) {
+    var t = ev.action; if (ev.value) { t += " " + ev.value; } if (ev.note) { t += " (" + ev.note + ")"; } return t;
+  }
+
+  function show() {
+    var list = visible();
+    var empty = list.length === 0;
+    $("empty").hidden = !empty;
+    $("item").hidden = empty;
+    $("pos").textContent = empty ? "0 / 0" : (index + 1) + " / " + list.length;
+    if (empty) { $("snippet").removeAttribute("src"); $("imageNote").textContent = ""; return; }
+    var it = list[index];
+    var roleText = it.role + (it.position > 1 ? " (position " + it.position + ")" : "");
+    $("title").innerHTML = esc(it.parameter) + " · " + esc(roleText) +
+      '<span class="tag ' + it.severity + '">' + it.severity + "</span>" + (it.core ? '<span class="tag core">core</span>' : "");
+    $("where").textContent = "record " + it.record_id + " · " + it.layout + " · page " + it.page;
+    var shown = it.value_state === "value" ? it.value : it.value_state;
+    $("value").innerHTML = esc(shown) + (it.unit ? " <small>" + esc(it.unit) + "</small>" : "") +
+      (it.raw_text !== it.value ? ' <small>raw "' + esc(it.raw_text) + '"</small>' : "") +
+      (it.struck ? '<span class="tag">struck</span>' : "") + (it.marked ? '<span class="tag">marked</span>' : "");
+    $("reading").textContent = "read by " + it.read_method + (it.second_reading ? " · second reading " + it.second_reading : "");
+    $("flags").innerHTML = it.flags.map(function (f) {
+      return '<div class="flag ' + f.severity + '">' + esc(f.message) + " <code>" + esc(f.rule_id) + "</code></div>";
+    }).join("");
+    $("suggestion").innerHTML = it.suggestion ?
+      '<span class="note">suggested: </span><strong>' + esc(it.suggestion) + '</strong><button class="suggest" id="useSuggestion" title="Alt+S">use</button>' : "";
+    if (it.suggestion) { $("useSuggestion").onclick = function () { $("answer").value = it.suggestion; $("answer").focus(); }; }
+    var row = it.row.slice();
+    row.unshift({ role: it.role, raw: it.raw_text, value: it.value, this_: true });
+    $("row").innerHTML = "<tr>" + row.map(function (c) { return "<th>" + esc(c.role) + "</th>"; }).join("") + "</tr>" +
+      "<tr>" + row.map(function (c) { return '<td class="' + (c.this_ ? "this" : "") + '">' + esc(c.raw) + "</td>"; }).join("") + "</tr>";
+    $("recordNotes").innerHTML = it.record_notes.length ? '<div class="note">record: ' + it.record_notes.map(esc).join("; ") + "</div>" : "";
+    $("others").innerHTML = it.others.length ? '<div class="others">other reviewers: ' +
+      it.others.map(function (e) { return esc(e.reviewer) + " · " + esc(describe(e)); }).join("; ") + "</div>" : "";
+    $("mine").innerHTML = it.mine ? '<div class="mine">your answer: ' + esc(describe(it.mine)) + "</div>" : "";
+    var img = $("snippet");
+    if (it.has_image) {
+      var src = ($("image").classList.contains("page") ? "/page" : "/snippet") +
+        "?record=" + encodeURIComponent(it.record_id) + "&key=" + encodeURIComponent(it.key) + "&t=" + Date.now();
+      img.src = src; $("imageNote").textContent = "";
+    } else {
+      img.removeAttribute("src"); $("imageNote").textContent = "no box on the page for this cell";
+    }
+    $("answer").value = ""; $("answer").focus();
+    message("", "");
+    shownAt = new Date(); shownMs = Date.now();
+  }
+
+  function message(text, cls) { var m = $("message"); m.textContent = text; m.className = cls; }
+
+  function isoLocal(d) {
+    var off = -d.getTimezoneOffset(), sign = off >= 0 ? "+" : "-", pad = function (n) { return String(Math.abs(n)).padStart(2, "0"); };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()) +
+      sign + pad(Math.floor(Math.abs(off) / 60)) + ":" + pad(Math.abs(off) % 60);
+  }
+
+  function submit() {
+    var list = visible(); if (!list.length || inFlight) { return; }
+    var it = list[index], text = $("answer").value;
+    if (!text.trim()) { message("type an answer", "err"); return; }
+    inFlight = true;
+    fetchJSON("/answer", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ record_id: it.record_id, key: it.key, answer: text, shown_at: isoLocal(shownAt), elapsed_ms: Date.now() - shownMs }) })
+    .then(function (j) {
+      message("saved: " + j.action, "ok");
+      // the item usually leaves the queue; stay at the same place in the list
+      var nextKey = list[index + 1] ? list[index + 1].key : null;
+      return loadItems($("showAnswered").checked ? it.key : nextKey);
+    })
+    .catch(function (e) { message(e.message, "err"); })
+    .then(function () { inFlight = false; $("answer").focus(); });
+  }
+
+  function move(delta) {
+    var n = visible().length; if (!n) { return; }
+    index = (index + delta + n) % n; show();
+  }
+
+  function togglePage() { $("image").classList.toggle("page"); show(); }
+
+  $("answer").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+  document.addEventListener("keydown", function (e) {
+    if (!e.altKey) { return; }
+    if (e.key === "ArrowLeft") { e.preventDefault(); move(-1); }
+    else if (e.key === "ArrowRight") { e.preventDefault(); move(1); }
+    else if (e.key === "p" || e.key === "P") { e.preventDefault(); togglePage(); }
+    else if ((e.key === "s" || e.key === "S") && $("useSuggestion")) { e.preventDefault(); $("useSuggestion").click(); }
+  });
+  $("prev").onclick = function () { move(-1); };
+  $("next").onclick = function () { move(1); };
+  $("snippet").onclick = togglePage;
+  $("showAnswered").onchange = function () { loadItems(); };
+  $("ruleFilter").onchange = function () { index = 0; show(); };
+  $("finish").onclick = function () {
+    if (!confirm("End the review session? The session's start and end are written now.")) { return; }
+    fetchJSON("/quit", { method: "POST" }).then(function () {
+      document.body.innerHTML = '<p style="padding:40px;text-align:center">Session ended. You can close this tab.</p>';
+    }).catch(function (e) { message(e.message, "err"); });
+  };
+  window.addEventListener("beforeunload", function () { /* the server writes the session row when it stops */ });
+  loadItems();
+})();
+</script>
+</body>
+</html>

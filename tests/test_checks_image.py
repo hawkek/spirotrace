@@ -223,6 +223,34 @@ def test_stage_sets_struck_and_marked_and_records_the_conditions() -> None:
     assert obs[keys["struck"]].value_state.value == "value"
 
 
+def test_strike_is_looked_for_on_trial_cells_only() -> None:
+    # a table rule through a summary or lab cell measures like a strike (real
+    # scans, 2 Nov 2026: 60 of 66 hits were off the trial rows); only the device's
+    # trial rows are struck, so the test runs there and red is still looked for
+    rec, pg = record(), DrawnPage()
+    pre = put(rec, P.FEV1, R.PRE, "3.05", pg.place(draw_cell("3.05", strike=True)))
+    lab = put(rec, P.TLC, R.MEASURED, "5.10", pg.place(draw_cell("5.10", strike=True)))
+    red = put(
+        rec, P.FVC, R.PCTPRED, "98", pg.place(draw_cell("98", fill=RED, strike=True))
+    )
+    trial = put(
+        rec, P.FVC, R.TRIAL, "3.70", pg.place(draw_cell("3.70", strike=True)), 2
+    )
+    post = put(
+        rec, P.FEV1, R.POST_TRIAL, "3.10", pg.place(draw_cell("3.10", strike=True)), 3
+    )
+    stats = image_check_records(
+        [rec], [page()], b"", image_thresholds(), render=pg.render
+    )
+    assert (stats.cells, stats.struck, stats.red) == (5, 2, 1)
+    obs = rec.observations
+    assert obs[trial].struck and obs[post].struck
+    assert not obs[pre].struck and not obs[lab].struck and not obs[red].struck
+    assert obs[red].marked
+    struck_keys = {c.key for c in rec.conditions if c.code == cond.IMAGE_STRUCK_LINE}
+    assert struck_keys == {trial, post}
+
+
 def test_stage_skips_pages_it_has_no_row_for_and_too_small_boxes() -> None:
     rec = record()
     put(rec, P.FEV1, R.PRE, "3.05", (0.3, 0.1, 0.3005, 0.1005))
@@ -345,32 +373,38 @@ def test_pipeline_runs_the_stage_only_when_image_checks_is_true(
     )
     renders = 0
 
-    def strike_everything(
+    def red_and_struck_everything(
         data: bytes, index: int, dpi: int, rotation: int
     ) -> Image.Image:
-        # every cell of the fake reader shares one box; draw a line through it
+        # every cell of the fake reader shares one box; print it red with a line
+        # through it (the fake reader has no trial cells, so nothing is struck)
         nonlocal renders
         renders += 1
         w, h = int(PAGE_W * dpi / 72), int(PAGE_H * dpi / 72)
         im = Image.new("RGB", (w, h), (255, 255, 255))
         d = ImageDraw.Draw(im)
         at = (int(0.1 * w) + 4, int(0.1 * h) + 2)
-        d.text(at, "3.05", font=FONT, fill=BLACK)
+        d.text(at, "3.05", font=FONT, fill=RED)
         x0, y0, x1, y1 = d.textbbox(at, "3.05", font=FONT)
-        d.line((x0 - 2, (y0 + y1) // 2, x1 + 2, (y0 + y1) // 2), fill=BLACK, width=2)
+        d.line((x0 - 2, (y0 + y1) // 2, x1 + 2, (y0 + y1) // 2), fill=RED, width=2)
         return im
 
-    monkeypatch.setattr(image_stage, "render_page", strike_everything)
+    monkeypatch.setattr(image_stage, "render_page", red_and_struck_everything)
     lines: list[str] = []
     result = pipeline.run_project(
         folder, load_settings(folder), fake_reader, console=lines.append
     )
     assert result.image is not None and result.image.cells > 0 and renders == 2
-    assert result.image.struck == result.image.cells
+    assert result.image.red == result.image.cells and result.image.struck == 0
     text = "\n".join(lines)
     assert "image checks: cells" in text and "3.05" not in text
-    assert any(f.rule_id == "image.struck_number" for f in result.store.flags)
-    assert any(o.struck for r in result.store.records for o in r.observations.values())
+    assert not any(f.rule_id == "image.struck_number" for f in result.store.flags)
+    assert all(
+        o.marked
+        for r in result.store.records
+        for o in r.observations.values()
+        if o.value_state.value == "value"
+    )
 
     renders = 0
     off = pipeline.run_project(
