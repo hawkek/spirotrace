@@ -23,6 +23,10 @@ MANUAL_S311 = "the device operator's manual s.3.11 (session quality)"
 PHYSIOLOGICAL = "adult clinical plausibility (v0.3.14)"
 V0314 = "v0.3.14 spiro_extract.py"
 SYNTHETIC_CELLS = "set on synthetic cells (tests/test_checks_image.py)"
+REAL_SCANS_NOV26 = (
+    "set on the 3 Nov 2026 look at flagged cells of the real scans, counts and "
+    "measurements only (decisions.md); synthetic cells in tests/test_checks_image.py"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,10 +227,12 @@ THRESHOLDS: dict[str, Threshold] = {
         "ink width over ink height; a lone 1 or 4 is dark along a whole row",
     ),
     "empty_cell_ink": Threshold(
-        0.01,
-        SYNTHETIC_CELLS,
-        "dark fraction of an empty cell's slot; a printed digit is 0.02 to 0.03, "
-        "a short dash 0.004 (the format, stays blank)",
+        0.035,
+        REAL_SCANS_NOV26,
+        "dark fraction of an empty cell's slot at 300 dpi; on the real scans a printed "
+        "number the text layer missed measures 0.041 (cut off at the edge) to 0.147, "
+        "a visibly blank slot 0.011 to 0.028 (scan noise, a dashed rule); the "
+        "synthetic short dash is 0.004",
     ),
     "red_text_fraction": Threshold(
         0.02, SYNTHETIC_CELLS, "red-pixel fraction of a cell; black digits give 0"
